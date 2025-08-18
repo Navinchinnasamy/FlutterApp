@@ -1,6 +1,8 @@
+import 'package:coolapp/data/constants.dart';
 import 'package:coolapp/data/notifiers.dart';
+import 'package:coolapp/views/pages/welcome_page.dart';
 import 'package:flutter/material.dart';
-import 'package:coolapp/views/widget_tree.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,6 +17,17 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   @override
+  void initState() {
+    super.initState();
+    setupTheme();
+  }
+
+  void setupTheme() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    isDarkModeNotifier.value = prefs.getBool(KConstants.isDarkModeKey) ?? false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder(
       valueListenable: isDarkModeNotifier,
@@ -28,7 +41,7 @@ class _MyAppState extends State<MyApp> {
               brightness: isDarkMode ? Brightness.dark : Brightness.light,
             ),
           ),
-          home: WidgetTree(),
+          home: WelcomePage(),
         );
       },
     );

@@ -1,9 +1,11 @@
+import 'package:coolapp/data/constants.dart';
 import 'package:coolapp/data/notifiers.dart';
 import 'package:coolapp/views/pages/home_page.dart';
 import 'package:coolapp/views/pages/profile_page.dart';
 import 'package:coolapp/views/pages/settings_page.dart';
 import 'package:coolapp/widgets/navbar_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 List<Widget> pages = [HomePage(), ProfilePage()];
 
@@ -27,8 +29,11 @@ class WidgetTree extends StatelessWidget {
                 );
               },
             ),
-            onPressed: () {
+            onPressed: () async {
               isDarkModeNotifier.value = !isDarkModeNotifier.value;
+              final SharedPreferences prefs =
+                  await SharedPreferences.getInstance();
+              prefs.setBool(KConstants.isDarkModeKey, isDarkModeNotifier.value);
             },
           ),
           IconButton(
@@ -36,7 +41,9 @@ class WidgetTree extends StatelessWidget {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => SettingsPage()),
+                MaterialPageRoute(
+                  builder: (context) => SettingsPage(title: "Settings"),
+                ),
               );
             },
           ),

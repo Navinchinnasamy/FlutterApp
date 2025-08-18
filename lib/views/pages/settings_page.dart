@@ -1,7 +1,9 @@
+import 'package:coolapp/views/pages/expanded_flexible.dart';
 import 'package:flutter/material.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, required this.title});
+  final String title;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -18,12 +20,57 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), centerTitle: true),
+      appBar: AppBar(
+        title: Text(widget.title),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        leading: BackButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
+              ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      duration: Duration(seconds: 5),
+                      content: Text("Snackbar"),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                child: Text("Open Snackbar"),
+              ),
+              Divider(color: Colors.teal, thickness: 5.0, endIndent: 200.0),
+              ElevatedButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog.adaptive(
+                        title: Text("Alert Title"),
+                        content: Text("Alert Content"),
+                        actions: [
+                          FilledButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: Text("Close"),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+                child: Text("Show Alert"),
+              ),
+              SizedBox(height: 20),
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
@@ -118,7 +165,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Text("Click Me"),
               ),
               SizedBox(height: 20),
-              ElevatedButton(onPressed: () {}, child: Text("Click Me")),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ExpandedFlexible()),
+                  );
+                },
+                child: Text("Expanded Flexible"),
+              ),
               SizedBox(height: 20),
               FilledButton(onPressed: () {}, child: Text("Click Me")),
               SizedBox(height: 20),
