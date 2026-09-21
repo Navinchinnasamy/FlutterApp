@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:multicast_dns/multicast_dns.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -295,10 +297,41 @@ class _PantryHomePageState extends State<PantryHomePage>
                 _sync();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Export local backup'),
+              subtitle: const Text('Share a JSON copy of this iPhone data'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportBackup();
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _exportBackup() async {
+    try {
+      final data = await _store.read();
+      final payload = {
+        'format': 'pantry-state-v1',
+        'exportedAt': DateTime.now().toUtc().toIso8601String(),
+        'items': data.items,
+        'shopping': data.shopping,
+      };
+      final directory = await getTemporaryDirectory();
+      final file = File(path.join(directory.path, 'pantry-mobile-backup.json'));
+      await file.writeAsString(jsonEncode(payload));
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], subject: 'Pantry mobile backup'),
+      );
+    } catch (error) {
+      if (mounted) {
+        _message('Backup export failed: $error');
+      }
+    }
   }
 
   Future<void> _discoverLaptop({bool silent = false}) async {
