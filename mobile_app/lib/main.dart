@@ -445,6 +445,32 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
 
   void _message(String value) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
 
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  String _formatTimestamp(String? value) {
+    if (value == null || value.isEmpty) return 'Not synced';
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    final local = parsed.toLocal();
+    final date = '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+    final time = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return '$date at $time';
+  }
+
+  String _inventorySubtitle(Map<String, dynamic> item) {
+    final details = <String>[
+      if ((item['quantity'] as String? ?? '').trim().isNotEmpty) (item['quantity'] as String).trim(),
+      item['category'] as String? ?? 'Pantry',
+      if ((item['date'] as String? ?? '').trim().isNotEmpty) item['date'] as String,
+    ];
+    return details.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -461,11 +487,11 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(18), children: [
               if (_error != null) Card(color: Colors.orange.shade50, child: Padding(padding: const EdgeInsets.all(12), child: Text(_error!))),
-              Text('Good evening', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+              Text(_greeting(), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text('${_items.length} items at home', style: const TextStyle(color: Colors.grey)),
               _ConnectionBanner(status: _connectionStatus, serverUrl: _serverUrl, onRetry: _sync),
-              if (_lastSyncedAt != null) Text('Last synced $_lastSyncedAt', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              if (_lastSyncedAt != null) Text('Last synced ${_formatTimestamp(_lastSyncedAt)}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
               const SizedBox(height: 18),
               Row(children: [
                 _StatCard(label: 'Inventory', value: '${_items.length}', icon: Icons.inventory_2_outlined),
@@ -487,7 +513,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                       child: Text(item['icon'] as String? ?? '🛒'),
                     ),
                     title: Text(item['name'] as String? ?? ''),
-                    subtitle: Text('${item['quantity'] ?? ''} · ${item['category'] ?? 'Pantry'} · ${item['date'] ?? 'No date'}'),
+                    subtitle: Text(_inventorySubtitle(item)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       IconButton(onPressed: () => _editInventoryItem(item), icon: const Icon(Icons.edit_outlined)),
                       IconButton(onPressed: () => _deleteInventoryItem(item), icon: const Icon(Icons.delete_outline)),
@@ -507,7 +533,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 child: ListTile(
                   leading: Checkbox(value: item['done'] == 1 || item['done'] == true, onChanged: (_) => _markPicked(item)),
                   title: Text(item['name'] as String, style: TextStyle(decoration: item['done'] == 1 || item['done'] == true ? TextDecoration.lineThrough : null)),
-                  subtitle: Text('${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · ${item['updatedAt'] ?? 'Not synced'}'),
+                  subtitle: Text('${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}'),
                   trailing: IconButton(onPressed: () => _deleteShoppingItem(item), icon: const Icon(Icons.delete_outline)),
                 ),
               )),
