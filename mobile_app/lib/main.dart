@@ -49,6 +49,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _connectionStatus = 'Checking connection';
   String _memberName = 'Navin';
   Timer? _retryTimer;
+  int _selectedSection = 0;
 
   @override
   void initState() {
@@ -711,121 +712,140 @@ class _PantryHomePageState extends State<PantryHomePage>
                     ],
                   ),
                   const SizedBox(height: 22),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Inventory',
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        '${_items.length} items',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
+                  if (_selectedSection == 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Inventory',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                    ],
-                  ),
-                  if (_items.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text(
-                        'Your inventory is empty.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  else
-                    ..._items.map(
-                      (item) => Card(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(0xffe5f0e7),
-                            child: Text(item['icon'] as String? ?? '🛒'),
-                          ),
-                          title: Text(item['name'] as String? ?? ''),
-                          subtitle: Text(_inventorySubtitle(item)),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                onPressed: () => _editInventoryItem(item),
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
-                              IconButton(
-                                onPressed: () => _deleteInventoryItem(item),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
+                        Text(
+                          '${_items.length} items',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  const SizedBox(height: 22),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Shopping list',
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            _memberName,
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
+                    if (_items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          'Your inventory is empty.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    else
+                      ..._items.map(
+                        (item) => Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xffe5f0e7),
+                              child: Text(item['icon'] as String? ?? '🛒'),
+                            ),
+                            title: Text(item['name'] as String? ?? ''),
+                            subtitle: Text(_inventorySubtitle(item)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: () => _editInventoryItem(item),
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                                IconButton(
+                                  onPressed: () => _deleteInventoryItem(item),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
                             ),
                           ),
-                          TextButton.icon(
-                            onPressed: _addShoppingItem,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add'),
-                          ),
-                        ],
+                        ),
                       ),
-                    ],
-                  ),
-                  if (_shopping.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text(
-                        'Your shopping list is empty.',
-                        style: TextStyle(color: Colors.grey),
+                  ] else ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Shopping list',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              _memberName,
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _addShoppingItem,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (_shopping.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          'Your shopping list is empty.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ..._shopping.map(
+                      (item) => Card(
+                        child: ListTile(
+                          leading: Checkbox(
+                            value: item['done'] == 1 || item['done'] == true,
+                            onChanged: (_) => _markPicked(item),
+                          ),
+                          title: Text(
+                            item['name'] as String,
+                            style: TextStyle(
+                              decoration:
+                                  item['done'] == 1 || item['done'] == true
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
+                          ),
+                          trailing: IconButton(
+                            onPressed: () => _deleteShoppingItem(item),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ),
                       ),
                     ),
-                  ..._shopping.map(
-                    (item) => Card(
-                      child: ListTile(
-                        leading: Checkbox(
-                          value: item['done'] == 1 || item['done'] == true,
-                          onChanged: (_) => _markPicked(item),
-                        ),
-                        title: Text(
-                          item['name'] as String,
-                          style: TextStyle(
-                            decoration:
-                                item['done'] == 1 || item['done'] == true
-                                ? TextDecoration.lineThrough
-                                : null,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
-                        ),
-                        trailing: IconButton(
-                          onPressed: () => _deleteShoppingItem(item),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedSection,
+        onDestinationSelected: (index) =>
+            setState(() => _selectedSection = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Inventory',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.shopping_cart_outlined),
+            selectedIcon: Icon(Icons.shopping_cart),
+            label: 'Shopping List',
+          ),
+        ],
+      ),
     );
   }
 }
