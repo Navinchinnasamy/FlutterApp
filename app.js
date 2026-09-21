@@ -92,6 +92,31 @@ async function downloadBackup(){
   } catch (error) {
     showDataError(`Could not export backup: ${error.message}`);
   }
+  function chooseBackupFile(){ $("#backup-file").click(); }
+  $("#backup-file").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file || !confirm("Restore this backup? Current laptop data will be replaced.")) return;
+    try {
+      const backup = JSON.parse(await file.text());
+      const response = await fetch("/api/restore", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(backup)
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Restore request failed");
+      }
+      const restored = await response.json();
+      items = restored.items;
+      shopping = restored.shopping;
+      render();
+      showDataError("Backup restored successfully.");
+    } catch (error) {
+      showDataError(`Could not restore backup: ${error.message}`);
+    }
+  });
 }
 $("#item-form").addEventListener("submit",async e=>{e.preventDefault();const data=new FormData(e.target);const name=data.get("name").trim();if(!name)return;const date=data.get("date")||"2026-09-30";const timestamp=now();let added;if(editingItem){const previous={...editingItem};Object.assign(editingItem,{name,category:data.get("category"),quantity:data.get("quantity"),date,status:data.get("status"),updatedAt:timestamp});try{await save();render();closeModal();}catch(error){Object.assign(editingItem,previous);showDataError(`Could not save this item: ${error.message}`);}return;}if(modalTarget==="shopping"){added={id:Date.now(),createdAt:timestamp,updatedAt:timestamp,deletedAt:null,name,note:data.get("quantity"),quantity:data.get("quantity"),category:data.get("category"),date,icon:"🛒",done:false,who:data.get("who")||"Navin"};shopping.unshift(added);}else{added={id:Date.now(),createdAt:timestamp,updatedAt:timestamp,deletedAt:null,name,category:data.get("category"),quantity:data.get("quantity"),date,icon:"🛒",status:data.get("status")||"ok"};items.unshift(added);}try{await save();render();closeModal();}catch(error){if(modalTarget==="shopping")shopping=shopping.filter(i=>i!==added);else items=items.filter(i=>i!==added);showDataError(`Could not save this item: ${error.message}`);}});
 $("#search-input").addEventListener("input",renderInventory);

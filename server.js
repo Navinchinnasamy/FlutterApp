@@ -140,6 +140,24 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
+  if (pathname === "/api/restore" && request.method === "PUT") {
+    let body = "";
+    request.on("data", chunk => {
+      body += chunk;
+      if (body.length > 1_000_000) request.destroy();
+    });
+    request.on("end", () => {
+      try {
+        const backup = JSON.parse(body);
+        if (backup.format !== "pantry-state-v1") throw new Error("Unsupported backup format");
+        replaceState(backup);
+        send(response, 200, state());
+      } catch (error) {
+        send(response, 400, {error: error.message});
+      }
+    });
+    return;
+  }
   if (pathname === "/api/sync" && request.method === "PUT") {
     let body = "";
     request.on("data", chunk => {

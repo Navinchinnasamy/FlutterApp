@@ -25,5 +25,6 @@ The server binds to the local network, keeps data in SQLite, and provides:
 - `PUT /api/state` to save the current web-app state
 - `PUT /api/sync` to merge timestamped changes from a device
 - `GET /api/backup` to export a JSON backup of the household data
+- `PUT /api/restore` to restore a validated JSON backup
 
 The API is intentionally local-network oriented. It is not intended to be exposed directly to the public internet.
