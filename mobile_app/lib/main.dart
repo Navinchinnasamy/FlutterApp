@@ -615,6 +615,18 @@ class _PantryHomePageState extends State<PantryHomePage>
     return details.join(' · ');
   }
 
+  String _shoppingSubtitle(Map<String, dynamic> item) {
+    final details = <String>[
+      if ((item['note'] as String? ?? '').trim().isNotEmpty)
+        (item['note'] as String).trim(),
+      item['category'] as String? ?? 'Pantry',
+      if ((item['date'] as String? ?? '').trim().isNotEmpty)
+        'Best before ${item['date']}',
+      'Added by ${item['who'] ?? 'Unknown'}',
+    ];
+    return details.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -799,32 +811,32 @@ class _PantryHomePageState extends State<PantryHomePage>
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
-                    ..._shopping.map(
-                      (item) => Card(
+                    ..._shopping.map((item) {
+                      final done = item['done'] == 1 || item['done'] == true;
+                      return Card(
+                        color: done ? Colors.grey.shade100 : null,
                         child: ListTile(
                           leading: Checkbox(
-                            value: item['done'] == 1 || item['done'] == true,
-                            onChanged: (_) => _markPicked(item),
+                            value: done,
+                            onChanged: done ? null : (_) => _markPicked(item),
                           ),
                           title: Text(
                             item['name'] as String,
                             style: TextStyle(
-                              decoration:
-                                  item['done'] == 1 || item['done'] == true
+                              decoration: done
                                   ? TextDecoration.lineThrough
                                   : null,
+                              color: done ? Colors.grey : null,
                             ),
                           ),
-                          subtitle: Text(
-                            '${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
-                          ),
+                          subtitle: Text(_shoppingSubtitle(item)),
                           trailing: IconButton(
                             onPressed: () => _deleteShoppingItem(item),
                             icon: const Icon(Icons.delete_outline),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ],
                 ],
               ),
