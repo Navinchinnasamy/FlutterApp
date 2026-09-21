@@ -246,6 +246,35 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     await _sync();
   }
 
+  Future<void> _deleteInventoryItem(Map<String, dynamic> item) async {
+    if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
+    await _store.softDelete('items', item['id']);
+    await _load();
+    await _sync();
+  }
+
+  Future<void> _deleteShoppingItem(Map<String, dynamic> item) async {
+    if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
+    await _store.softDelete('shopping', item['id']);
+    await _load();
+    await _sync();
+  }
+
+  Future<bool> _confirmDelete(String name) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Remove item?'),
+            content: Text('Remove $name from Pantry?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _editInventoryItem(Map<String, dynamic> item) async {
     final nameController = TextEditingController(text: item['name'] as String? ?? '');
     final quantityController = TextEditingController(text: item['quantity'] as String? ?? '');
@@ -441,7 +470,10 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                     ),
                     title: Text(item['name'] as String? ?? ''),
                     subtitle: Text('${item['quantity'] ?? ''} · ${item['category'] ?? 'Pantry'} · ${item['date'] ?? 'No date'}'),
-                    trailing: IconButton(onPressed: () => _editInventoryItem(item), icon: const Icon(Icons.edit_outlined)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(onPressed: () => _editInventoryItem(item), icon: const Icon(Icons.edit_outlined)),
+                      IconButton(onPressed: () => _deleteInventoryItem(item), icon: const Icon(Icons.delete_outline)),
+                    ]),
                   ),
                 )),
               const SizedBox(height: 22),
@@ -458,6 +490,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                   leading: Checkbox(value: item['done'] == 1 || item['done'] == true, onChanged: (_) => _markPicked(item)),
                   title: Text(item['name'] as String, style: TextStyle(decoration: item['done'] == 1 || item['done'] == true ? TextDecoration.lineThrough : null)),
                   subtitle: Text('${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · ${item['updatedAt'] ?? 'Not synced'}'),
+                  trailing: IconButton(onPressed: () => _deleteShoppingItem(item), icon: const Icon(Icons.delete_outline)),
                 ),
               )),
             ])),
@@ -537,6 +570,15 @@ class LocalStore {
   Future<void> setMemberName(String value) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('member_name', value);
+  }
+
+  Future<void> softDelete(String table, dynamic id) async {
+    if (table != 'items' && table != 'shopping') {
+      throw ArgumentError.value(table, 'table', 'Unsupported Pantry table');
+    }
+    final db = await database;
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+    await db.update(table, {'deletedAt': timestamp, 'updatedAt': timestamp}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<Database> get database async {
