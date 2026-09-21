@@ -96,6 +96,8 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     setState(() { _syncing = true; _connectionStatus = 'Syncing'; _error = null; });
     try {
       final data = await _store.sync(_serverUrl);
+      await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
+      await _store.clearPendingSync();
       if (!mounted) return true;
       setState(() {
         _items = data.items.where((item) => item['deletedAt'] == null).toList();
@@ -103,9 +105,6 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         _syncing = false;
         _connectionStatus = 'Connected';
       });
-      await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
-      await _store.clearPendingSync();
-      if (mounted) setState(() {});
       _message('Synced with Pantry laptop');
       return true;
     } catch (error) {
