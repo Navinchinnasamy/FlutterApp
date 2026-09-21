@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -46,17 +47,20 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   String? _lastSyncedAt;
   String _connectionStatus = 'Checking connection';
   String _memberName = 'Navin';
+  Timer? _retryTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
+    _retryTimer = Timer.periodic(const Duration(seconds: 30), (_) => _retryPendingSync());
+    _load(retryPending: true);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _retryTimer?.cancel();
     super.dispose();
   }
 
@@ -67,7 +71,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool retryPending = false}) async {
     try {
       _serverUrl = await _store.serverUrl();
       _lastSyncedAt = await _store.lastSyncedAt();
@@ -80,6 +84,9 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         _loading = false;
       });
       await _checkConnection();
+      if (retryPending && await _store.hasPendingSync()) {
+        await _autoSync();
+      }
     } catch (error) {
       if (mounted) setState(() { _loading = false; _error = error.toString(); });
     }
@@ -97,13 +104,20 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         _connectionStatus = 'Connected';
       });
       await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
+      await _store.clearPendingSync();
       if (mounted) setState(() {});
       _message('Synced with Pantry laptop');
       return true;
     } catch (error) {
+      await _store.markSyncPending();
       if (mounted) setState(() { _syncing = false; _connectionStatus = 'Offline'; _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.'; });
       return false;
     }
+  }
+
+  Future<void> _retryPendingSync() async {
+    if (!mounted || _loading || _syncing || !await _store.hasPendingSync()) return;
+    await _sync();
   }
 
   Future<void> _checkConnection() async {
@@ -227,6 +241,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       ..._shopping,
     ];
     await _store.write(_items, _shopping);
+    await _store.markSyncPending();
     setState(() {});
     await _sync();
   }
@@ -242,6 +257,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     shoppingItem['done'] = 1;
     shoppingItem['updatedAt'] = stamp;
     await _store.write(_items, _shopping);
+    await _store.markSyncPending();
     setState(() {});
     await _sync();
   }
@@ -249,6 +265,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   Future<void> _deleteInventoryItem(Map<String, dynamic> item) async {
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
     await _store.softDelete('items', item['id']);
+    await _store.markSyncPending();
     await _load();
     await _sync();
   }
@@ -256,6 +273,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   Future<void> _deleteShoppingItem(Map<String, dynamic> item) async {
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
     await _store.softDelete('shopping', item['id']);
+    await _store.markSyncPending();
     await _load();
     await _sync();
   }
@@ -342,6 +360,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       ..['date'] = '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'
       ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
     await _store.write(_items, _shopping);
+    await _store.markSyncPending();
     if (mounted) setState(() {});
     await _sync();
   }
@@ -570,6 +589,21 @@ class LocalStore {
   Future<void> setMemberName(String value) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('member_name', value);
+  }
+
+  Future<bool> hasPendingSync() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool('sync_pending') ?? false;
+  }
+
+  Future<void> markSyncPending() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('sync_pending', true);
+  }
+
+  Future<void> clearPendingSync() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('sync_pending', false);
   }
 
   Future<void> softDelete(String table, dynamic id) async {
