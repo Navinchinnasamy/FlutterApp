@@ -243,6 +243,64 @@ class _PantryHomePageState extends State<PantryHomePage>
     }
   }
 
+  Future<void> _showSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text('Pantry settings'),
+              subtitle: Text('Connection and household preferences'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.laptop_mac_outlined),
+              title: const Text('Laptop address'),
+              subtitle: Text(_serverUrl),
+              onTap: () {
+                Navigator.pop(context);
+                _configureLaptop();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Family member'),
+              subtitle: Text(_memberName),
+              onTap: () {
+                Navigator.pop(context);
+                _configureMember();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.wifi_find),
+              title: const Text('Find laptop on Wi-Fi'),
+              subtitle: const Text('Discover the Pantry laptop automatically'),
+              onTap: () {
+                Navigator.pop(context);
+                _discoverLaptop();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sync),
+              title: const Text('Sync now'),
+              subtitle: Text(
+                _syncPending
+                    ? 'Changes waiting to sync'
+                    : 'Keep data up to date',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _sync();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _discoverLaptop({bool silent = false}) async {
     setState(() {
       _syncing = true;
@@ -1006,6 +1064,11 @@ class _PantryHomePageState extends State<PantryHomePage>
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.sync),
+          ),
+          IconButton(
+            onPressed: _showSettings,
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
