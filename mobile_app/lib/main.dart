@@ -54,6 +54,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
   String _shoppingFilter = 'To buy';
+  bool _syncPending = false;
 
   @override
   void initState() {
@@ -85,6 +86,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       _serverUrl = await _store.serverUrl();
       _lastSyncedAt = await _store.lastSyncedAt();
       _memberName = await _store.memberName();
+      _syncPending = await _store.hasPendingSync();
       final data = await _store.read();
       if (!mounted) return;
       setState(() {
@@ -117,6 +119,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       final data = await _store.sync(_serverUrl);
       await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
       await _store.clearPendingSync();
+      if (mounted) setState(() => _syncPending = false);
       if (!mounted) return true;
       setState(() {
         _items = data.items.where((item) => item['deletedAt'] == null).toList();
@@ -133,6 +136,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       if (mounted)
         setState(() {
           _syncing = false;
+          _syncPending = true;
           _connectionStatus = 'Offline';
           _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.';
         });
@@ -308,6 +312,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     ];
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     setState(() {});
     await _sync();
   }
@@ -414,6 +419,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       ..['updatedAt'] = stamp;
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     if (mounted) setState(() {});
     await _sync();
   }
@@ -441,6 +447,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     shoppingItem['updatedAt'] = stamp;
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     setState(() {});
     await _sync();
   }
@@ -465,7 +472,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     ];
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
-    if (mounted) setState(() {});
+    if (mounted) setState(() => _syncPending = true);
     await _sync();
   }
 
@@ -473,6 +480,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
     await _store.softDelete('items', item['id']);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     await _load();
     await _sync();
   }
@@ -481,6 +489,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
     await _store.softDelete('shopping', item['id']);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     await _load();
     await _sync();
   }
@@ -606,6 +615,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
     if (mounted) setState(() {});
     await _sync();
   }
@@ -1028,6 +1038,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                   _ConnectionBanner(
                     status: _connectionStatus,
                     serverUrl: _serverUrl,
+                    pending: _syncPending,
                     onRetry: _sync,
                   ),
                   if (_lastSyncedAt != null)
@@ -1444,10 +1455,12 @@ class _ConnectionBanner extends StatelessWidget {
   const _ConnectionBanner({
     required this.status,
     required this.serverUrl,
+    required this.pending,
     required this.onRetry,
   });
   final String status;
   final String serverUrl;
+  final bool pending;
   final Future<bool> Function() onRetry;
 
   @override
@@ -1480,7 +1493,9 @@ class _ConnectionBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '$status · $serverUrl',
+              pending
+                  ? '$status · Changes waiting to sync'
+                  : '$status · $serverUrl',
               style: TextStyle(color: color, fontSize: 11),
               overflow: TextOverflow.ellipsis,
             ),
