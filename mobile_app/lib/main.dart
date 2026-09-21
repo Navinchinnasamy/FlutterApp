@@ -894,6 +894,15 @@ class _PantryHomePageState extends State<PantryHomePage>
     return Colors.grey.shade700;
   }
 
+  List<Map<String, dynamic>> _attentionItems() {
+    return _items.where((item) {
+      final status = item['status'] as String?;
+      return status == 'low' ||
+          status == 'soon' ||
+          _expiryLabel(item['date'] as String?) != null;
+    }).toList();
+  }
+
   bool _matchesSearch(Map<String, dynamic> item) {
     final query = _searchQuery.trim().toLowerCase();
     final categoryMatches =
@@ -1026,6 +1035,53 @@ class _PantryHomePageState extends State<PantryHomePage>
                       ),
                     ],
                   ),
+                  if (_attentionItems().isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Card(
+                      color: Colors.orange.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.orange.shade800,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Needs attention',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ..._attentionItems()
+                                .take(3)
+                                .map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      '• ${item['name']} · ${_statusLabel(item['status'] as String?)}${_expiryLabel(item['date'] as String?) == null ? '' : ' · ${_expiryLabel(item['date'] as String?)}'}',
+                                    ),
+                                  ),
+                                ),
+                            if (_attentionItems().length > 3)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '+ ${_attentionItems().length - 3} more',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 22),
                   TextField(
                     onChanged: (value) => setState(() => _searchQuery = value),
