@@ -50,6 +50,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _memberName = 'Navin';
   Timer? _retryTimer;
   int _selectedSection = 0;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -627,8 +628,22 @@ class _PantryHomePageState extends State<PantryHomePage>
     return details.join(' · ');
   }
 
+  bool _matchesSearch(Map<String, dynamic> item) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    return [
+      item['name'],
+      item['category'],
+      item['quantity'],
+      item['note'],
+      item['who'],
+    ].whereType<String>().any((value) => value.toLowerCase().contains(query));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final visibleItems = _items.where(_matchesSearch).toList();
+    final visibleShopping = _shopping.where(_matchesSearch).toList();
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -724,6 +739,29 @@ class _PantryHomePageState extends State<PantryHomePage>
                     ],
                   ),
                   const SizedBox(height: 22),
+                  TextField(
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: _selectedSection == 0
+                          ? 'Search inventory'
+                          : 'Search shopping list',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () =>
+                                  setState(() => _searchQuery = ''),
+                              icon: const Icon(Icons.clear),
+                            ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   if (_selectedSection == 0) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -734,7 +772,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          '${_items.length} items',
+                          '${visibleItems.length} items',
                           style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 12,
@@ -742,7 +780,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       ],
                     ),
-                    if (_items.isEmpty)
+                    if (visibleItems.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Text(
@@ -751,7 +789,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       )
                     else
-                      ..._items.map(
+                      ...visibleItems.map(
                         (item) => Card(
                           child: ListTile(
                             leading: CircleAvatar(
@@ -803,7 +841,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       ],
                     ),
-                    if (_shopping.isEmpty)
+                    if (visibleShopping.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Text(
@@ -811,7 +849,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
-                    ..._shopping.map((item) {
+                    ...visibleShopping.map((item) {
                       final done = item['done'] == 1 || item['done'] == true;
                       return Card(
                         color: done ? Colors.grey.shade100 : null,
