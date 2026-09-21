@@ -228,6 +228,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     ];
     await _store.write(_items, _shopping);
     setState(() {});
+    await _sync();
   }
 
   Future<void> _markPicked(Map<String, dynamic> shoppingItem) async {
@@ -242,6 +243,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     shoppingItem['updatedAt'] = stamp;
     await _store.write(_items, _shopping);
     setState(() {});
+    await _sync();
   }
 
   Future<void> _editInventoryItem(Map<String, dynamic> item) async {
@@ -312,6 +314,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
     await _store.write(_items, _shopping);
     if (mounted) setState(() {});
+    await _sync();
   }
 
   Future<Map<String, String>?> _askForShoppingItem() async {
