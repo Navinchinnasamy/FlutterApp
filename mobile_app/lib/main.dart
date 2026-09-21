@@ -57,6 +57,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
   String _shoppingFilter = 'To buy';
+  String _inventorySort = 'Recently updated';
   bool _syncPending = false;
 
   @override
@@ -1127,9 +1128,40 @@ class _PantryHomePageState extends State<PantryHomePage>
         (_shoppingFilter == 'Completed' && done);
   }
 
+  List<Map<String, dynamic>> _sortedInventory(
+    List<Map<String, dynamic>> items,
+  ) {
+    final sorted = [...items];
+    int compareText(dynamic left, dynamic right) => (left?.toString() ?? '')
+        .toLowerCase()
+        .compareTo((right?.toString() ?? '').toLowerCase());
+    DateTime dateValue(dynamic value) =>
+        DateTime.tryParse(value?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    sorted.sort((left, right) {
+      switch (_inventorySort) {
+        case 'Name':
+          return compareText(left['name'], right['name']);
+        case 'Best before':
+          return dateValue(left['date']).compareTo(dateValue(right['date']));
+        case 'Stock urgency':
+          const rank = {'soon': 0, 'low': 1, 'ok': 2};
+          return (rank[left['status']] ?? 3).compareTo(
+            rank[right['status']] ?? 3,
+          );
+        default:
+          return dateValue(right['updatedAt'])
+              .compareTo(dateValue(left['updatedAt']));
+      }
+    });
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visibleItems = _items.where(_matchesSearch).toList();
+    final visibleItems = _sortedInventory(
+      _items.where(_matchesSearch).toList(),
+    );
     final visibleShopping = _shopping
         .where((item) => _matchesSearch(item) && _matchesShoppingFilter(item))
         .toList();
@@ -1395,6 +1427,38 @@ class _PantryHomePageState extends State<PantryHomePage>
                     const SizedBox(height: 16),
                   ],
                   if (_selectedSection == 0) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _inventorySort,
+                      decoration: InputDecoration(
+                        labelText: 'Sort inventory',
+                        prefixIcon: const Icon(Icons.sort),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Recently updated',
+                          child: Text('Recently updated'),
+                        ),
+                        DropdownMenuItem(value: 'Name', child: Text('Name')),
+                        DropdownMenuItem(
+                          value: 'Best before',
+                          child: Text('Best before'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Stock urgency',
+                          child: Text('Stock urgency'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(
+                        () => _inventorySort = value ?? 'Recently updated',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1566,6 +1630,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           _selectedCategory = 'All';
           _selectedStatus = 'All';
           _shoppingFilter = 'To buy';
+          _inventorySort = 'Recently updated';
         }),
         destinations: const [
           NavigationDestination(
