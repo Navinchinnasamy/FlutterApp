@@ -337,6 +337,30 @@ class _PantryHomePageState extends State<PantryHomePage>
     await _sync();
   }
 
+  Future<void> _addInventoryItem() async {
+    final draft = await _askForInventoryItem();
+    if (draft == null || draft['name']!.isEmpty) return;
+    final stamp = DateTime.now().toUtc().toIso8601String();
+    _items = [
+      {
+        'id': DateTime.now().millisecondsSinceEpoch,
+        'name': draft['name'],
+        'quantity': draft['quantity'],
+        'category': draft['category'],
+        'date': draft['date'],
+        'icon': '🛒',
+        'status': draft['status'],
+        'createdAt': stamp,
+        'updatedAt': stamp,
+      },
+      ..._items,
+    ];
+    await _store.write(_items, _shopping);
+    await _store.markSyncPending();
+    if (mounted) setState(() {});
+    await _sync();
+  }
+
   Future<void> _deleteInventoryItem(Map<String, dynamic> item) async {
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
     await _store.softDelete('items', item['id']);
@@ -583,6 +607,107 @@ class _PantryHomePageState extends State<PantryHomePage>
     );
   }
 
+  Future<Map<String, String>?> _askForInventoryItem() async {
+    final nameController = TextEditingController();
+    final quantityController = TextEditingController();
+    String category = 'Pantry';
+    String status = 'ok';
+    DateTime bestBefore = DateTime.now().add(const Duration(days: 7));
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add inventory item'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Item name',
+                    hintText: 'e.g. Rice',
+                  ),
+                ),
+                TextField(
+                  controller: quantityController,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    hintText: 'e.g. 2 kg',
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items:
+                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => category = value ?? 'Pantry'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'ok', child: Text('In stock')),
+                    DropdownMenuItem(value: 'low', child: Text('Running low')),
+                    DropdownMenuItem(value: 'soon', child: Text('Use soon')),
+                  ],
+                  onChanged: (value) =>
+                      setDialogState(() => status = value ?? 'ok'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: bestBefore,
+                      firstDate: DateTime.now().subtract(
+                        const Duration(days: 3650),
+                      ),
+                      lastDate: DateTime.now().add(const Duration(days: 3650)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => bestBefore = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text(
+                    'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, {
+                'name': nameController.text.trim(),
+                'quantity': quantityController.text.trim(),
+                'category': category,
+                'status': status,
+                'date':
+                    '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+              }),
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _message(String value) =>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(value)));
@@ -812,6 +937,11 @@ class _PantryHomePageState extends State<PantryHomePage>
                             color: Colors.grey,
                             fontSize: 12,
                           ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: _addInventoryItem,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add'),
                         ),
                       ],
                     ),
