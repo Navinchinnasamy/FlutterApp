@@ -44,6 +44,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   String? _error;
   String _serverUrl = 'http://localhost:3000';
   String? _lastSyncedAt;
+  String _connectionStatus = 'Checking connection';
 
   @override
   void initState() {
@@ -76,13 +77,14 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
         _loading = false;
       });
+      await _checkConnection();
     } catch (error) {
       if (mounted) setState(() { _loading = false; _error = error.toString(); });
     }
   }
 
   Future<bool> _sync() async {
-    setState(() { _syncing = true; _error = null; });
+    setState(() { _syncing = true; _connectionStatus = 'Syncing'; _error = null; });
     try {
       final data = await _store.sync(_serverUrl);
       if (!mounted) return true;
@@ -90,14 +92,24 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         _items = data.items.where((item) => item['deletedAt'] == null).toList();
         _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
         _syncing = false;
+        _connectionStatus = 'Connected';
       });
       await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
       if (mounted) setState(() {});
       _message('Synced with Pantry laptop');
       return true;
     } catch (error) {
-      if (mounted) setState(() { _syncing = false; _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.'; });
+      if (mounted) setState(() { _syncing = false; _connectionStatus = 'Offline'; _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.'; });
       return false;
+    }
+  }
+
+  Future<void> _checkConnection() async {
+    try {
+      final response = await http.get(Uri.parse('$_serverUrl/api/health')).timeout(const Duration(seconds: 3));
+      if (mounted) setState(() => _connectionStatus = response.statusCode == 200 ? 'Connected' : 'Offline');
+    } catch (_) {
+      if (mounted) setState(() => _connectionStatus = 'Offline');
     }
   }
 
@@ -300,6 +312,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
               Text('Good evening', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Text('${_items.length} items at home', style: const TextStyle(color: Colors.grey)),
+              _ConnectionBanner(status: _connectionStatus, serverUrl: _serverUrl, onRetry: _sync),
               if (_lastSyncedAt != null) Text('Last synced $_lastSyncedAt', style: const TextStyle(color: Colors.grey, fontSize: 11)),
               const SizedBox(height: 18),
               Row(children: [
@@ -333,6 +346,31 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(child: Card(child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [Icon(icon, color: const Color(0xff628c6d)), const SizedBox(width: 10), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)), Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))])]))));
+}
+
+class _ConnectionBanner extends StatelessWidget {
+  const _ConnectionBanner({required this.status, required this.serverUrl, required this.onRetry});
+  final String status;
+  final String serverUrl;
+  final Future<bool> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = status == 'Connected';
+    final syncing = status == 'Syncing';
+    final color = connected ? const Color(0xff628c6d) : syncing ? Colors.orange : Colors.grey;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Icon(syncing ? Icons.sync : connected ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 17, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Text('$status · $serverUrl', style: TextStyle(color: color, fontSize: 11), overflow: TextOverflow.ellipsis)),
+        if (!connected && !syncing) TextButton(onPressed: onRetry, child: const Text('Sync')),
+      ]),
+    );
+  }
 }
 
 class PantryData {
