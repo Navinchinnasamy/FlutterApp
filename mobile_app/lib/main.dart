@@ -311,6 +311,112 @@ class _PantryHomePageState extends State<PantryHomePage>
     await _sync();
   }
 
+  Future<void> _editShoppingItem(Map<String, dynamic> item) async {
+    final nameController = TextEditingController(
+      text: item['name'] as String? ?? '',
+    );
+    final quantityController = TextEditingController(
+      text: item['note'] as String? ?? '',
+    );
+    String category = item['category'] as String? ?? 'Pantry';
+    String who = item['who'] as String? ?? _memberName;
+    DateTime bestBefore =
+        DateTime.tryParse(item['date'] as String? ?? '') ??
+        DateTime.now().add(const Duration(days: 7));
+
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit shopping item'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Item name'),
+                ),
+                TextField(
+                  controller: quantityController,
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items:
+                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => category = value ?? 'Pantry'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: who,
+                  decoration: const InputDecoration(labelText: 'Added by'),
+                  items: const ['Navin', 'Vani']
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => who = value ?? _memberName),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: bestBefore,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 3650)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => bestBefore = picked);
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text(
+                    'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (updated != true || nameController.text.trim().isEmpty) return;
+    final stamp = DateTime.now().toUtc().toIso8601String();
+    item
+      ..['name'] = nameController.text.trim()
+      ..['note'] = quantityController.text.trim()
+      ..['category'] = category
+      ..['who'] = who
+      ..['date'] =
+          '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'
+      ..['updatedAt'] = stamp;
+    await _store.write(_items, _shopping);
+    await _store.markSyncPending();
+    if (mounted) setState(() {});
+    await _sync();
+  }
+
   Future<void> _markPicked(Map<String, dynamic> shoppingItem) async {
     if (shoppingItem['done'] == 1 || shoppingItem['done'] == true) return;
     final stamp = DateTime.now().toUtc().toIso8601String();
@@ -1083,9 +1189,18 @@ class _PantryHomePageState extends State<PantryHomePage>
                             ),
                           ),
                           subtitle: Text(_shoppingSubtitle(item)),
-                          trailing: IconButton(
-                            onPressed: () => _deleteShoppingItem(item),
-                            icon: const Icon(Icons.delete_outline),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () => _editShoppingItem(item),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                onPressed: () => _deleteShoppingItem(item),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
                           ),
                         ),
                       );
