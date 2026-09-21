@@ -53,6 +53,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _searchQuery = '';
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
+  String _shoppingFilter = 'To buy';
 
   @override
   void initState() {
@@ -892,10 +893,19 @@ class _PantryHomePageState extends State<PantryHomePage>
     ].whereType<String>().any((value) => value.toLowerCase().contains(query));
   }
 
+  bool _matchesShoppingFilter(Map<String, dynamic> item) {
+    final done = item['done'] == 1 || item['done'] == true;
+    return _shoppingFilter == 'All' ||
+        (_shoppingFilter == 'To buy' && !done) ||
+        (_shoppingFilter == 'Completed' && done);
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleItems = _items.where(_matchesSearch).toList();
-    final visibleShopping = _shopping.where(_matchesSearch).toList();
+    final visibleShopping = _shopping
+        .where((item) => _matchesSearch(item) && _matchesShoppingFilter(item))
+        .toList();
     final categories = <String>{
       'All',
       ..._items.map((item) => item['category']).whereType<String>(),
@@ -1162,6 +1172,25 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'To buy',
+                          label: Text('To buy'),
+                          icon: Icon(Icons.shopping_cart_outlined),
+                        ),
+                        ButtonSegment(
+                          value: 'Completed',
+                          label: Text('Completed'),
+                          icon: Icon(Icons.check_circle_outline),
+                        ),
+                        ButtonSegment(value: 'All', label: Text('All')),
+                      ],
+                      selected: {_shoppingFilter},
+                      onSelectionChanged: (selection) =>
+                          setState(() => _shoppingFilter = selection.first),
+                    ),
                     if (visibleShopping.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
@@ -1216,6 +1245,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           _searchQuery = '';
           _selectedCategory = 'All';
           _selectedStatus = 'All';
+          _shoppingFilter = 'To buy';
         }),
         destinations: const [
           NavigationDestination(
