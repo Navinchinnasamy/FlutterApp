@@ -223,6 +223,76 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     setState(() {});
   }
 
+  Future<void> _editInventoryItem(Map<String, dynamic> item) async {
+    final nameController = TextEditingController(text: item['name'] as String? ?? '');
+    final quantityController = TextEditingController(text: item['quantity'] as String? ?? '');
+    String category = item['category'] as String? ?? 'Pantry';
+    String status = item['status'] as String? ?? 'ok';
+    DateTime bestBefore = DateTime.tryParse(item['date'] as String? ?? '') ?? DateTime.now().add(const Duration(days: 7));
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit inventory item'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Item name')),
+                TextField(controller: quantityController, decoration: const InputDecoration(labelText: 'Quantity')),
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
+                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      .toList(),
+                  onChanged: (value) => setDialogState(() => category = value ?? 'Pantry'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: status,
+                  decoration: const InputDecoration(labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'ok', child: Text('In stock')),
+                    DropdownMenuItem(value: 'low', child: Text('Running low')),
+                    DropdownMenuItem(value: 'soon', child: Text('Use soon')),
+                  ],
+                  onChanged: (value) => setDialogState(() => status = value ?? 'ok'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: bestBefore,
+                      firstDate: DateTime.now().subtract(const Duration(days: 3650)),
+                      lastDate: DateTime.now().add(const Duration(days: 3650)),
+                    );
+                    if (picked != null) setDialogState(() => bestBefore = picked);
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text('Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (updated != true || nameController.text.trim().isEmpty) return;
+    item
+      ..['name'] = nameController.text.trim()
+      ..['quantity'] = quantityController.text.trim()
+      ..['category'] = category
+      ..['status'] = status
+      ..['date'] = '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'
+      ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+    await _store.write(_items, _shopping);
+    if (mounted) setState(() {});
+  }
+
   Future<Map<String, String>?> _askForShoppingItem() async {
     final nameController = TextEditingController();
     final quantityController = TextEditingController();
@@ -320,6 +390,25 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 const SizedBox(width: 10),
                 _StatCard(label: 'To buy', value: '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}', icon: Icons.shopping_cart_outlined),
               ]),
+              const SizedBox(height: 22),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Inventory', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Text('${_items.length} items', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ]),
+              if (_items.isEmpty)
+                const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text('Your inventory is empty.', style: TextStyle(color: Colors.grey)))
+              else
+                ..._items.map((item) => Card(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: const Color(0xffe5f0e7),
+                      child: Text(item['icon'] as String? ?? '🛒'),
+                    ),
+                    title: Text(item['name'] as String? ?? ''),
+                    subtitle: Text('${item['quantity'] ?? ''} · ${item['category'] ?? 'Pantry'} · ${item['date'] ?? 'No date'}'),
+                    trailing: IconButton(onPressed: () => _editInventoryItem(item), icon: const Icon(Icons.edit_outlined)),
+                  ),
+                )),
               const SizedBox(height: 22),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('Shopping list', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
