@@ -331,7 +331,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 DropdownButtonFormField<String>(
                   initialValue: who,
                   decoration: const InputDecoration(labelText: 'Added by'),
-                  items: const ['Navin', 'Wife']
+                  items: const ['Navin', 'Vani']
                       .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                       .toList(),
                   onChanged: (value) => setDialogState(() => who = value ?? 'Navin'),
