@@ -52,6 +52,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   int _selectedSection = 0;
   String _searchQuery = '';
   String _selectedCategory = 'All';
+  String _selectedStatus = 'All';
 
   @override
   void initState() {
@@ -754,12 +755,28 @@ class _PantryHomePageState extends State<PantryHomePage>
     return details.join(' · ');
   }
 
+  String _statusLabel(String? status) {
+    switch (status) {
+      case 'low':
+        return 'Running low';
+      case 'soon':
+        return 'Use soon';
+      default:
+        return 'In stock';
+    }
+  }
+
   bool _matchesSearch(Map<String, dynamic> item) {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return true;
     final categoryMatches =
         _selectedCategory == 'All' || item['category'] == _selectedCategory;
     if (!categoryMatches) return false;
+    final statusMatches =
+        _selectedSection != 0 ||
+        _selectedStatus == 'All' ||
+        item['status'] == _selectedStatus;
+    if (!statusMatches) return false;
+    if (query.isEmpty) return true;
     return [
       item['name'],
       item['category'],
@@ -923,6 +940,36 @@ class _PantryHomePageState extends State<PantryHomePage>
                   ),
                   const SizedBox(height: 16),
                   if (_selectedSection == 0) ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedStatus,
+                      decoration: InputDecoration(
+                        labelText: 'Stock status',
+                        prefixIcon: const Icon(Icons.flag_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'All', child: Text('All')),
+                        DropdownMenuItem(value: 'ok', child: Text('In stock')),
+                        DropdownMenuItem(
+                          value: 'low',
+                          child: Text('Running low'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'soon',
+                          child: Text('Use soon'),
+                        ),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _selectedStatus = value ?? 'All'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_selectedSection == 0) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -962,7 +1009,10 @@ class _PantryHomePageState extends State<PantryHomePage>
                               child: Text(item['icon'] as String? ?? '🛒'),
                             ),
                             title: Text(item['name'] as String? ?? ''),
-                            subtitle: Text(_inventorySubtitle(item)),
+                            subtitle: Text(
+                              '${_inventorySubtitle(item)} · ${_statusLabel(item['status'] as String?)}',
+                            ),
+                            isThreeLine: true,
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -1050,6 +1100,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           _selectedSection = index;
           _searchQuery = '';
           _selectedCategory = 'All';
+          _selectedStatus = 'All';
         }),
         destinations: const [
           NavigationDestination(
