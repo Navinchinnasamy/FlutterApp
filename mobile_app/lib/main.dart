@@ -903,6 +903,23 @@ class _PantryHomePageState extends State<PantryHomePage>
     }).toList();
   }
 
+  List<Map<String, dynamic>> _recentActivity() {
+    final records = <Map<String, dynamic>>[
+      ..._items.map((item) => {...item, '_type': 'Inventory'}),
+      ..._shopping.map((item) => {...item, '_type': 'Shopping'}),
+    ];
+    records.sort((a, b) {
+      final left =
+          DateTime.tryParse(a['updatedAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final right =
+          DateTime.tryParse(b['updatedAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return right.compareTo(left);
+    });
+    return records.take(5).toList();
+  }
+
   bool _matchesSearch(Map<String, dynamic> item) {
     final query = _searchQuery.trim().toLowerCase();
     final categoryMatches =
@@ -1079,6 +1096,35 @@ class _PantryHomePageState extends State<PantryHomePage>
                               ),
                           ],
                         ),
+                      ),
+                    ),
+                  ],
+                  if (_recentActivity().isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      'Recent activity',
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Card(
+                      child: Column(
+                        children: _recentActivity()
+                            .map(
+                              (item) => ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  item['_type'] == 'Inventory'
+                                      ? Icons.inventory_2_outlined
+                                      : Icons.shopping_cart_outlined,
+                                ),
+                                title: Text(item['name'] as String? ?? ''),
+                                subtitle: Text(
+                                  '${item['_type']} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   ],
