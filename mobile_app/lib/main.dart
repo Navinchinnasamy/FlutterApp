@@ -155,6 +155,25 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       _message('Laptop address saved');
   }
 
+  Future<void> _configureMember() async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Who is using this iPhone?'),
+        children: [
+          SimpleDialogOption(onPressed: () => Navigator.pop(context, 'Navin'), child: const Text('Navin')),
+          SimpleDialogOption(onPressed: () => Navigator.pop(context, 'Vani'), child: const Text('Vani')),
+        ],
+      ),
+    );
+    if (selected == null) return;
+    await _store.setMemberName(selected);
+    if (mounted) {
+      setState(() => _memberName = selected);
+      _message('New items will be added by $selected');
+    }
+  }
+
   Future<void> _discoverLaptop({bool silent = false}) async {
     setState(() { _syncing = true; _error = null; });
     final client = MDnsClient();
@@ -384,6 +403,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         actions: [
           IconButton(onPressed: _syncing ? null : _discoverLaptop, tooltip: 'Find laptop', icon: const Icon(Icons.wifi_find)),
           IconButton(onPressed: _configureLaptop, tooltip: 'Configure laptop', icon: const Icon(Icons.laptop_mac_outlined)),
+          IconButton(onPressed: _configureMember, tooltip: 'Choose family member', icon: const Icon(Icons.person_outline)),
           IconButton(onPressed: _syncing ? null : _sync, tooltip: 'Sync with laptop', icon: _syncing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.sync)),
         ],
       ),
@@ -424,7 +444,10 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
               const SizedBox(height: 22),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('Shopping list', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                TextButton.icon(onPressed: _addShoppingItem, icon: const Icon(Icons.add), label: const Text('Add')),
+                Row(children: [
+                  Text(_memberName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  TextButton.icon(onPressed: _addShoppingItem, icon: const Icon(Icons.add), label: const Text('Add')),
+                ]),
               ]),
               if (_shopping.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text('Your shopping list is empty.', style: TextStyle(color: Colors.grey))),
               ..._shopping.map((item) => Card(
