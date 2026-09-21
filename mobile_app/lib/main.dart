@@ -72,8 +72,8 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       final data = await _store.read();
       if (!mounted) return;
       setState(() {
-        _items = data.items;
-        _shopping = data.shopping;
+        _items = data.items.where((item) => item['deletedAt'] == null).toList();
+        _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
         _loading = false;
       });
     } catch (error) {
@@ -86,7 +86,11 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     try {
       final data = await _store.sync(_serverUrl);
       if (!mounted) return true;
-      setState(() { _items = data.items; _shopping = data.shopping; _syncing = false; });
+      setState(() {
+        _items = data.items.where((item) => item['deletedAt'] == null).toList();
+        _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
+        _syncing = false;
+      });
       await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
       if (mounted) setState(() {});
       _message('Synced with Pantry laptop');
@@ -298,9 +302,14 @@ class LocalStore {
   Future<Database> get database async {
     if (_database != null) return _database!;
     final directory = await getApplicationDocumentsDirectory();
-    _database = await openDatabase(path.join(directory.path, 'pantry_mobile.db'), version: 1, onCreate: (db, version) async {
-      await db.execute('CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, name TEXT, category TEXT, quantity TEXT, date TEXT, icon TEXT, status TEXT)');
-      await db.execute('CREATE TABLE shopping (id INTEGER PRIMARY KEY, createdAt TEXT, updatedAt TEXT, name TEXT, note TEXT, category TEXT, date TEXT, icon TEXT, done INTEGER, who TEXT)');
+    _database = await openDatabase(path.join(directory.path, 'pantry_mobile.db'), version: 2, onCreate: (db, version) async {
+      await db.execute('CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, category TEXT, quantity TEXT, date TEXT, icon TEXT, status TEXT)');
+      await db.execute('CREATE TABLE shopping (id INTEGER PRIMARY KEY, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, note TEXT, category TEXT, date TEXT, icon TEXT, done INTEGER, who TEXT)');
+    }, onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        await db.execute('ALTER TABLE items ADD COLUMN deletedAt TEXT');
+        await db.execute('ALTER TABLE shopping ADD COLUMN deletedAt TEXT');
+      }
     });
     return _database!;
   }
@@ -317,10 +326,7 @@ class LocalStore {
       await txn.delete('shopping');
       for (final source in items) {
         final item = Map<String, dynamic>.from(source)
-          ..removeWhere((key, value) => value == null)
-          ..['shoppingId'] = source['shoppingId']
-          ..['createdAt'] = source['createdAt']
-          ..['updatedAt'] = source['updatedAt'];
+          ..removeWhere((key, value) => value == null);
         await txn.insert('items', item);
       }
       for (final source in shopping) {

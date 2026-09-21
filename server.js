@@ -38,12 +38,14 @@ try { database.exec("ALTER TABLE items ADD COLUMN created_at TEXT"); } catch (er
 try { database.exec("ALTER TABLE items ADD COLUMN updated_at TEXT"); } catch (error) { if (!error.message.includes("duplicate column name")) throw error; }
 try { database.exec("ALTER TABLE shopping ADD COLUMN created_at TEXT"); } catch (error) { if (!error.message.includes("duplicate column name")) throw error; }
 try { database.exec("ALTER TABLE shopping ADD COLUMN updated_at TEXT"); } catch (error) { if (!error.message.includes("duplicate column name")) throw error; }
+try { database.exec("ALTER TABLE items ADD COLUMN deleted_at TEXT"); } catch (error) { if (!error.message.includes("duplicate column name")) throw error; }
+try { database.exec("ALTER TABLE shopping ADD COLUMN deleted_at TEXT"); } catch (error) { if (!error.message.includes("duplicate column name")) throw error; }
 database.exec("UPDATE items SET created_at = COALESCE(created_at, datetime('now')), updated_at = COALESCE(updated_at, datetime('now')); UPDATE shopping SET created_at = COALESCE(created_at, datetime('now')), updated_at = COALESCE(updated_at, datetime('now'));");
 
 function state() {
   return {
-    items: database.prepare("SELECT id, shopping_id AS shoppingId, created_at AS createdAt, updated_at AS updatedAt, name, category, quantity, date, icon, status FROM items ORDER BY id DESC").all(),
-    shopping: database.prepare("SELECT id, created_at AS createdAt, updated_at AS updatedAt, name, note, category, date, icon, done, who FROM shopping ORDER BY id DESC").all().map(item => ({...item, done: Boolean(item.done)}))
+    items: database.prepare("SELECT id, shopping_id AS shoppingId, created_at AS createdAt, updated_at AS updatedAt, deleted_at AS deletedAt, name, category, quantity, date, icon, status FROM items ORDER BY id DESC").all(),
+    shopping: database.prepare("SELECT id, created_at AS createdAt, updated_at AS updatedAt, deleted_at AS deletedAt, name, note, category, date, icon, done, who FROM shopping ORDER BY id DESC").all().map(item => ({...item, done: Boolean(item.done)}))
   };
 }
 
@@ -52,15 +54,15 @@ function replaceState(next) {
   database.exec("BEGIN");
   try {
     database.exec("DELETE FROM items; DELETE FROM shopping;");
-    const insertItem = database.prepare("INSERT INTO items (id, shopping_id, created_at, updated_at, name, category, quantity, date, icon, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    const insertItem = database.prepare("INSERT INTO items (id, shopping_id, created_at, updated_at, deleted_at, name, category, quantity, date, icon, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     for (const item of next.items) {
       const createdAt = item.createdAt || new Date().toISOString();
-      insertItem.run(item.id, item.shoppingId || null, createdAt, item.updatedAt || createdAt, item.name, item.category, item.quantity, item.date, item.icon, item.status);
+      insertItem.run(item.id, item.shoppingId || null, createdAt, item.updatedAt || createdAt, item.deletedAt || null, item.name, item.category, item.quantity, item.date, item.icon, item.status);
     }
-    const insertShopping = database.prepare("INSERT INTO shopping (id, created_at, updated_at, name, note, category, date, icon, done, who) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    const insertShopping = database.prepare("INSERT INTO shopping (id, created_at, updated_at, deleted_at, name, note, category, date, icon, done, who) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     for (const item of next.shopping) {
       const createdAt = item.createdAt || new Date().toISOString();
-      insertShopping.run(item.id, createdAt, item.updatedAt || createdAt, item.name, item.note, item.category || "Pantry", item.date || "2026-09-30", item.icon, item.done ? 1 : 0, item.who);
+      insertShopping.run(item.id, createdAt, item.updatedAt || createdAt, item.deletedAt || null, item.name, item.note, item.category || "Pantry", item.date || "2026-09-30", item.icon, item.done ? 1 : 0, item.who);
     }
     database.exec("COMMIT");
   } catch (error) {
