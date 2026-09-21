@@ -1,0 +1,27 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Local application data
+pantry.sqlite
+pantry.sqlite-*
+
+# Flutter/Dart generated files
+mobile_app/.dart_tool/
+mobile_app/build/
+mobile_app/.flutter-plugins
+mobile_app/.flutter-plugins-dependencies
+mobile_app/.packages
+mobile_app/.pub-cache/
+
+# IDE and OS files
+.DS_Store
+.idea/
+*.iml
+
+# Xcode generated/user files
+mobile_app/ios/Pods/
+mobile_app/ios/.symlinks/
+mobile_app/ios/Flutter/ephemeral/
+mobile_app/ios/Runner.xcworkspace/xcuserdata/
+mobile_app/ios/Runner.xcodeproj/xcuserdata/

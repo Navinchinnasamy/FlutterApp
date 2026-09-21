@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8f4" />
+    <title>Pantry — Family grocery stock</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">✦</div>
+          <div><strong>Pantry</strong><span>Family stock</span></div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-view="overview"><span>⌂</span> Overview</button>
+          <button class="nav-item" data-view="inventory"><span>▦</span> Inventory</button>
+          <button class="nav-item" data-view="shopping"><span>✓</span> Shopping list <b id="nav-count">0</b></button>
+        </nav>
+
+        <div class="sidebar-section">
+          <div class="section-label">Categories</div>
+          <div id="sidebar-categories"></div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="family-card">
+            <div class="avatar-stack"><span>AD</span><span>NK</span><span>+2</span></div>
+            <div><strong>Our family</strong><small>4 members</small></div>
+            <button aria-label="Family settings">•••</button>
+          </div>
+          <div class="tip"><span>☼</span><div><strong>Small steps</strong><small>Less waste, more good food.</small></div></div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumb"><span>Home</span><b>/</b><strong id="page-title">Overview</strong></div>
+          <div class="top-actions">
+            <button class="icon-button" aria-label="Notifications">♧<i></i></button>
+            <div class="profile"><div class="profile-avatar">N</div><span>Navin</span><b>⌄</b></div>
+          </div>
+        </header>
+
+        <section id="overview-view" class="view">
+          <div class="hero">
+            <div><p class="eyebrow">Sunday, September 13, 2026</p><h1>Good evening, Navin <span>✦</span></h1><p class="subtitle">Here’s the fresh view of your household stock.</p></div>
+            <button class="primary-button" id="open-add"><span>＋</span> Add item</button>
+          </div>
+
+          <div class="stats-grid">
+            <article class="stat-card"><div class="stat-icon sage">▦</div><div><span>Total items</span><strong id="total-items">0</strong><small><em class="up">↗</em> 8% <b>vs last month</b></small></div></article>
+            <article class="stat-card"><div class="stat-icon peach">!</div><div><span>Running low</span><strong id="low-items">0</strong><small class="alert-copy">Need your attention</small></div></article>
+            <article class="stat-card"><div class="stat-icon lavender">◷</div><div><span>Expiring soon</span><strong id="expiring-items">0</strong><small>Within 7 days</small></div></article>
+            <article class="stat-card"><div class="stat-icon sky">♻</div><div><span>Waste avoided</span><strong>12.4 <small>kg</small></strong><small><em class="up">↗</em> 14% <b>this month</b></small></div></article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel stock-panel">
+              <div class="panel-heading"><div><h2>Stock overview</h2><p>Keep an eye on what’s in your home.</p></div><button class="text-button" data-view="inventory">View all <span>→</span></button></div>
+              <div class="chart-wrap"><div class="chart-y"><span>20</span><span>15</span><span>10</span><span>5</span><span>0</span></div><div class="chart"><div class="grid-lines"><i></i><i></i><i></i><i></i><i></i></div><div class="bars" id="bars"></div><div class="chart-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div></div>
+              <div class="chart-legend"><span><i class="legend-dot stock"></i>In stock</span><span><i class="legend-dot low"></i>Running low</span><span class="chart-note">Updated just now <b>•</b></span></div>
+            </section>
+            <section class="panel category-panel">
+              <div class="panel-heading"><div><h2>By category</h2><p>Where your stock lives.</p></div><button class="more-button">•••</button></div>
+              <div class="category-list" id="category-list"></div>
+              <div class="category-total"><strong>31</strong><span>items across your home</span><div class="mini-avatars"><span>AD</span><span>NK</span></div></div>
+            </section>
+          </div>
+
+          <div class="content-grid lower">
+            <section class="panel table-panel">
+              <div class="panel-heading"><div><h2>Needs attention</h2><p>Items to use soon or add to your next shop.</p></div><button class="text-button" data-view="inventory">See all <span>→</span></button></div>
+              <div class="attention-list" id="attention-list"></div>
+            </section>
+            <section class="panel list-panel">
+              <div class="panel-heading"><div><h2>Shopping list</h2><p>Things your family wants next.</p></div><button class="text-button" data-view="shopping">Open list <span>→</span></button></div>
+              <div id="shopping-preview"></div>
+              <button class="add-list-button" id="quick-add-list">＋ Add to shopping list</button>
+            </section>
+          </div>
+        </section>
+
+        <section id="inventory-view" class="view hidden">
+          <div class="page-heading"><div><p class="eyebrow">Everything at a glance</p><h1>Inventory</h1><p class="subtitle">Search, filter and update the stock around your home.</p></div><button class="primary-button" id="open-add-inventory"><span>＋</span> Add item</button></div>
+          <div class="toolbar"><div class="search"><span>⌕</span><input id="search-input" placeholder="Search your inventory..." /></div><div class="filter-group"><button class="filter-button active" data-filter="all">All items</button><button class="filter-button" data-filter="low">Running low</button><button class="filter-button" data-filter="expiring">Expiring soon</button></div></div>
+          <section class="panel inventory-panel"><div class="inventory-header"><span>Item</span><span>Category</span><span>Quantity</span><span>Best before</span><span>Status</span><span></span></div><div id="inventory-list"></div></section>
+        </section>
+
+        <section id="shopping-view" class="view hidden">
+          <div class="page-heading"><div><p class="eyebrow">Plan the next shop</p><h1>Shopping list</h1><p class="subtitle">A shared list for the whole family.</p></div><button class="primary-button" id="open-add-shopping"><span>＋</span> Add item</button></div>
+          <section class="panel shopping-page-panel"><div class="shopping-progress"><div><strong id="shopping-progress-text">0 of 0 items picked up</strong><span>Keep the good stuff coming.</span></div><div class="progress-track"><i id="progress-bar"></i></div></div><div id="shopping-list-full"></div></section>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="modal-backdrop">
+      <form class="modal" id="item-form">
+        <button type="button" class="close-modal" id="close-modal">×</button>
+        <p class="eyebrow">Add to your home stock</p><h2 id="modal-title">New grocery item</h2><p class="modal-subtitle">Keep a simple, shared record of what you have.</p>
+        <label>Item name<input name="name" required placeholder="e.g. Greek yoghurt" /></label>
+        <div class="form-row"><label>Category<select name="category"><option>Produce</option><option>Dairy</option><option>Pantry</option><option>Freezer</option><option>Drinks</option></select></label><label>Quantity<input name="quantity" required placeholder="e.g. 2 tubs" /></label></div>
+        <label>Best before <input name="date" type="date" /></label>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="cancel-modal">Cancel</button><button class="primary-button" type="submit">Save item</button></div>
+      </form>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
