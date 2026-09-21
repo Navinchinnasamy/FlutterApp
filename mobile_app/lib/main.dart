@@ -45,6 +45,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   String _serverUrl = 'http://localhost:3000';
   String? _lastSyncedAt;
   String _connectionStatus = 'Checking connection';
+  String _memberName = 'Navin';
 
   @override
   void initState() {
@@ -70,6 +71,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     try {
       _serverUrl = await _store.serverUrl();
       _lastSyncedAt = await _store.lastSyncedAt();
+      _memberName = await _store.memberName();
       final data = await _store.read();
       if (!mounted) return;
       setState(() {
@@ -199,7 +201,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         'date': draft['date'],
         'icon': '🛒',
         'done': 0,
-        'who': 'Navin',
+        'who': draft['who'],
         'createdAt': stamp,
         'updatedAt': stamp,
       },
@@ -297,6 +299,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     final nameController = TextEditingController();
     final quantityController = TextEditingController();
     String category = 'Pantry';
+    String who = _memberName;
     DateTime bestBefore = DateTime.now().add(const Duration(days: 7));
 
     return showDialog<Map<String, String>>(
@@ -325,6 +328,14 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                       .toList(),
                   onChanged: (value) => setDialogState(() => category = value ?? 'Pantry'),
                 ),
+                DropdownButtonFormField<String>(
+                  initialValue: who,
+                  decoration: const InputDecoration(labelText: 'Added by'),
+                  items: const ['Navin', 'Wife']
+                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      .toList(),
+                  onChanged: (value) => setDialogState(() => who = value ?? 'Navin'),
+                ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -352,6 +363,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 'name': nameController.text.trim(),
                 'quantity': quantityController.text.trim(),
                 'category': category,
+                'who': who,
                 'date': '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
               }),
               child: const Text('Add'),
@@ -419,7 +431,7 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 child: ListTile(
                   leading: Checkbox(value: item['done'] == 1 || item['done'] == true, onChanged: (_) => _markPicked(item)),
                   title: Text(item['name'] as String, style: TextStyle(decoration: item['done'] == 1 || item['done'] == true ? TextDecoration.lineThrough : null)),
-                  subtitle: Text('${item['category'] ?? 'Pantry'} · ${item['updatedAt'] ?? 'Not synced'}'),
+                  subtitle: Text('${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · ${item['updatedAt'] ?? 'Not synced'}'),
                 ),
               )),
             ])),
@@ -489,6 +501,16 @@ class LocalStore {
   Future<void> setLastSyncedAt(String value) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('last_synced_at', value);
+  }
+
+  Future<String> memberName() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getString('member_name') ?? 'Navin';
+  }
+
+  Future<void> setMemberName(String value) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('member_name', value);
   }
 
   Future<Database> get database async {
