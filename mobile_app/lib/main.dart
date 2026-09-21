@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:multicast_dns/multicast_dns.dart';
 import 'package:path/path.dart' as path;
@@ -306,6 +307,17 @@ class _PantryHomePageState extends State<PantryHomePage>
                 _exportBackup();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Import local backup'),
+              subtitle: const Text(
+                'Replace this iPhone data from a JSON backup',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _importBackup();
+              },
+            ),
           ],
         ),
       ),
@@ -331,6 +343,73 @@ class _PantryHomePageState extends State<PantryHomePage>
       if (mounted) {
         _message('Backup export failed: $error');
       }
+    }
+  }
+
+  Future<void> _importBackup() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      if (result == null) return;
+      final selected = result.files.single;
+      final bytes = selected.bytes;
+      final filePath = selected.path;
+      final content = bytes != null
+          ? utf8.decode(bytes)
+          : filePath == null
+          ? null
+          : await File(filePath).readAsString();
+      if (content == null) {
+        throw const FormatException('Could not read backup file');
+      }
+      final payload = jsonDecode(content);
+      if (payload is! Map<String, dynamic> ||
+          payload['format'] != 'pantry-state-v1' ||
+          payload['items'] is! List ||
+          payload['shopping'] is! List) {
+        throw const FormatException('Unsupported Pantry backup format');
+      }
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import backup?'),
+          content: const Text('This replaces the data stored on this iPhone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      final items = List<Map<String, dynamic>>.from(
+        (payload['items'] as List).map(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      );
+      final shopping = List<Map<String, dynamic>>.from(
+        (payload['shopping'] as List).map(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      );
+      await _store.write(items, shopping);
+      await _store.markSyncPending();
+      await _load();
+      if (mounted) {
+        setState(() => _syncPending = true);
+        _message('Backup imported. Sync to update the laptop.');
+      }
+    } catch (error) {
+      if (mounted) _message('Backup import failed: $error');
     }
   }
 
