@@ -120,6 +120,13 @@ const server = http.createServer((request, response) => {
   const pathname = new URL(request.url, `http://${request.headers.host || "localhost"}`).pathname;
   if (request.method === "OPTIONS") return send(response, 204, "");
   if (pathname === "/api/health" && request.method === "GET") return send(response, 200, {ok: true, service: "pantry", database: "sqlite"});
+  if (pathname === "/api/backup" && request.method === "GET") {
+    return send(response, 200, {
+      exportedAt: new Date().toISOString(),
+      format: "pantry-state-v1",
+      ...state()
+    });
+  }
   if (pathname === "/api/state" && request.method === "GET") return send(response, 200, state());
   if (pathname === "/api/state" && request.method === "PUT") {
     let body = "";

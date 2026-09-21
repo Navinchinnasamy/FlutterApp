@@ -23,5 +23,7 @@ The server binds to the local network, keeps data in SQLite, and provides:
 - `GET /api/health` for connection checks
 - `GET /api/state` to read the current household data
 - `PUT /api/state` to save the current web-app state
+- `PUT /api/sync` to merge timestamped changes from a device
+- `GET /api/backup` to export a JSON backup of the household data
 
 The API is intentionally local-network oriented. It is not intended to be exposed directly to the public internet.
