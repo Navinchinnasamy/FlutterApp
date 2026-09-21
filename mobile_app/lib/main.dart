@@ -51,6 +51,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   Timer? _retryTimer;
   int _selectedSection = 0;
   String _searchQuery = '';
+  String _selectedCategory = 'All';
 
   @override
   void initState() {
@@ -631,6 +632,9 @@ class _PantryHomePageState extends State<PantryHomePage>
   bool _matchesSearch(Map<String, dynamic> item) {
     final query = _searchQuery.trim().toLowerCase();
     if (query.isEmpty) return true;
+    final categoryMatches =
+        _selectedCategory == 'All' || item['category'] == _selectedCategory;
+    if (!categoryMatches) return false;
     return [
       item['name'],
       item['category'],
@@ -644,6 +648,11 @@ class _PantryHomePageState extends State<PantryHomePage>
   Widget build(BuildContext context) {
     final visibleItems = _items.where(_matchesSearch).toList();
     final visibleShopping = _shopping.where(_matchesSearch).toList();
+    final categories = <String>{
+      'All',
+      ..._items.map((item) => item['category']).whereType<String>(),
+      ..._shopping.map((item) => item['category']).whereType<String>(),
+    }.toList();
     return Scaffold(
       appBar: AppBar(
         title: const Column(
@@ -760,6 +769,32 @@ class _PantryHomePageState extends State<PantryHomePage>
                         borderSide: BorderSide.none,
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: categories.contains(_selectedCategory)
+                        ? _selectedCategory
+                        : 'All',
+                    decoration: InputDecoration(
+                      labelText: 'Category',
+                      prefixIcon: const Icon(Icons.category_outlined),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: categories
+                        .map(
+                          (category) => DropdownMenuItem(
+                            value: category,
+                            child: Text(category),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _selectedCategory = value ?? 'All'),
                   ),
                   const SizedBox(height: 16),
                   if (_selectedSection == 0) ...[
@@ -881,8 +916,11 @@ class _PantryHomePageState extends State<PantryHomePage>
             ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedSection,
-        onDestinationSelected: (index) =>
-            setState(() => _selectedSection = index),
+        onDestinationSelected: (index) => setState(() {
+          _selectedSection = index;
+          _searchQuery = '';
+          _selectedCategory = 'All';
+        }),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
