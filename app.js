@@ -18,7 +18,7 @@ async function loadData() {
 async function save() {
   const state = {items: [...items], shopping: [...shopping]};
   const request = saveQueue.then(async () => {
-    const response = await fetch("/api/state", {
+    const response = await fetch("/api/sync", {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(state)
@@ -27,6 +27,9 @@ async function save() {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.error || "Could not save grocery data");
     }
+    const merged = await response.json();
+    items = merged.items;
+    shopping = merged.shopping;
   });
   saveQueue = request.catch(() => {});
   return request;
