@@ -8,28 +8,49 @@ const categoryColors = ["green", "blue", "amber", "purple"];
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const now = () => new Date().toISOString();
+function setWebSyncStatus(status, detail = "") {
+  const element = $("#web-sync-status");
+  if (!element) return;
+  element.className = `web-sync-status ${status.toLowerCase()}`;
+  element.innerHTML = `<i></i>${status}${detail ? ` · ${detail}` : ""}`;
+}
 async function loadData() {
-  const response = await fetch("/api/state");
-  if (!response.ok) throw new Error("Could not load grocery data");
-  const data = await response.json();
-  items = data.items;
-  shopping = data.shopping;
+  setWebSyncStatus("Connecting");
+  try {
+    const response = await fetch("/api/state");
+    if (!response.ok) throw new Error("Could not load grocery data");
+    const data = await response.json();
+    items = data.items;
+    shopping = data.shopping;
+    setWebSyncStatus("Connected", new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}));
+  } catch (error) {
+    setWebSyncStatus("Offline");
+    throw error;
+  }
 }
 async function save() {
   const state = {items: [...items], shopping: [...shopping]};
   const request = saveQueue.then(async () => {
-    const response = await fetch("/api/sync", {
+    let response;
+    try {
+      response = await fetch("/api/sync", {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(state)
-    });
+      });
+    } catch (error) {
+      setWebSyncStatus("Offline");
+      throw error;
+    }
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      setWebSyncStatus("Offline");
       throw new Error(error.error || "Could not save grocery data");
     }
     const merged = await response.json();
     items = merged.items;
     shopping = merged.shopping;
+    setWebSyncStatus("Saved", new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}));
   });
   saveQueue = request.catch(() => {});
   return request;
