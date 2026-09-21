@@ -873,6 +873,27 @@ class _PantryHomePageState extends State<PantryHomePage>
     }
   }
 
+  String? _expiryLabel(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final date = DateTime.tryParse(value);
+    if (date == null) return null;
+    final today = DateTime.now();
+    final due = DateTime(date.year, date.month, date.day);
+    final current = DateTime(today.year, today.month, today.day);
+    final days = due.difference(current).inDays;
+    if (days < 0) return 'Expired';
+    if (days == 0) return 'Best before today';
+    if (days <= 3) return 'Best before in $days days';
+    return null;
+  }
+
+  Color _expiryColor(String? value) {
+    final label = _expiryLabel(value);
+    if (label == 'Expired') return Colors.red.shade700;
+    if (label != null) return Colors.orange.shade800;
+    return Colors.grey.shade700;
+  }
+
   bool _matchesSearch(Map<String, dynamic> item) {
     final query = _searchQuery.trim().toLowerCase();
     final categoryMatches =
@@ -1132,6 +1153,17 @@ class _PantryHomePageState extends State<PantryHomePage>
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (_expiryLabel(item['date'] as String?) !=
+                                    null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: _expiryColor(
+                                        item['date'] as String?,
+                                      ),
+                                    ),
+                                  ),
                                 IconButton(
                                   onPressed: () => _editInventoryItem(item),
                                   icon: const Icon(Icons.edit_outlined),
