@@ -36,7 +36,8 @@ class PantryHomePage extends StatefulWidget {
   State<PantryHomePage> createState() => _PantryHomePageState();
 }
 
-class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObserver {
+class _PantryHomePageState extends State<PantryHomePage>
+    with WidgetsBindingObserver {
   final LocalStore _store = LocalStore();
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _shopping = [];
@@ -53,7 +54,10 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _retryTimer = Timer.periodic(const Duration(seconds: 30), (_) => _retryPendingSync());
+    _retryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _retryPendingSync(),
+    );
     _load(retryPending: true);
   }
 
@@ -80,7 +84,9 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       if (!mounted) return;
       setState(() {
         _items = data.items.where((item) => item['deletedAt'] == null).toList();
-        _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
+        _shopping = data.shopping
+            .where((item) => item['deletedAt'] == null)
+            .toList();
         _loading = false;
       });
       await _checkConnection();
@@ -88,12 +94,20 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
         await _autoSync();
       }
     } catch (error) {
-      if (mounted) setState(() { _loading = false; _error = error.toString(); });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = error.toString();
+        });
     }
   }
 
   Future<bool> _sync() async {
-    setState(() { _syncing = true; _connectionStatus = 'Syncing'; _error = null; });
+    setState(() {
+      _syncing = true;
+      _connectionStatus = 'Syncing';
+      _error = null;
+    });
     try {
       final data = await _store.sync(_serverUrl);
       await _store.setLastSyncedAt(DateTime.now().toLocal().toString());
@@ -101,7 +115,9 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       if (!mounted) return true;
       setState(() {
         _items = data.items.where((item) => item['deletedAt'] == null).toList();
-        _shopping = data.shopping.where((item) => item['deletedAt'] == null).toList();
+        _shopping = data.shopping
+            .where((item) => item['deletedAt'] == null)
+            .toList();
         _syncing = false;
         _connectionStatus = 'Connected';
       });
@@ -109,20 +125,33 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       return true;
     } catch (error) {
       await _store.markSyncPending();
-      if (mounted) setState(() { _syncing = false; _connectionStatus = 'Offline'; _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.'; });
+      if (mounted)
+        setState(() {
+          _syncing = false;
+          _connectionStatus = 'Offline';
+          _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.';
+        });
       return false;
     }
   }
 
   Future<void> _retryPendingSync() async {
-    if (!mounted || _loading || _syncing || !await _store.hasPendingSync()) return;
+    if (!mounted || _loading || _syncing || !await _store.hasPendingSync())
+      return;
     await _sync();
   }
 
   Future<void> _checkConnection() async {
     try {
-      final response = await http.get(Uri.parse('$_serverUrl/api/health')).timeout(const Duration(seconds: 3));
-      if (mounted) setState(() => _connectionStatus = response.statusCode == 200 ? 'Connected' : 'Offline');
+      final response = await http
+          .get(Uri.parse('$_serverUrl/api/health'))
+          .timeout(const Duration(seconds: 3));
+      if (mounted)
+        setState(
+          () => _connectionStatus = response.statusCode == 200
+              ? 'Connected'
+              : 'Offline',
+        );
     } catch (_) {
       if (mounted) setState(() => _connectionStatus = 'Offline');
     }
@@ -135,37 +164,49 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   }
 
   Future<void> _configureLaptop() async {
-      final controller = TextEditingController(text: _serverUrl);
-      final value = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Laptop connection'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: 'Pantry laptop address',
-              hintText: 'http://192.168.1.25:3000',
-            ),
+    final controller = TextEditingController(text: _serverUrl);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Laptop connection'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: const InputDecoration(
+            labelText: 'Pantry laptop address',
+            hintText: 'http://192.168.1.25:3000',
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
-          ],
         ),
-      );
-      if (value == null || value.isEmpty) return;
-      final normalized = value.endsWith('/') ? value.substring(0, value.length - 1) : value;
-      final uri = Uri.tryParse(normalized);
-      if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-        _message('Enter a valid address such as http://192.168.1.25:3000');
-        return;
-      }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (value == null || value.isEmpty) return;
+    final normalized = value.endsWith('/')
+        ? value.substring(0, value.length - 1)
+        : value;
+    final uri = Uri.tryParse(normalized);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      _message('Enter a valid address such as http://192.168.1.25:3000');
+      return;
+    }
 
-      await _store.setServerUrl(normalized);
-      if (mounted) setState(() { _serverUrl = normalized; _error = null; });
-      _message('Laptop address saved');
+    await _store.setServerUrl(normalized);
+    if (mounted)
+      setState(() {
+        _serverUrl = normalized;
+        _error = null;
+      });
+    _message('Laptop address saved');
   }
 
   Future<void> _configureMember() async {
@@ -174,8 +215,14 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       builder: (context) => SimpleDialog(
         title: const Text('Who is using this iPhone?'),
         children: [
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, 'Navin'), child: const Text('Navin')),
-          SimpleDialogOption(onPressed: () => Navigator.pop(context, 'Vani'), child: const Text('Vani')),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'Navin'),
+            child: const Text('Navin'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'Vani'),
+            child: const Text('Vani'),
+          ),
         ],
       ),
     );
@@ -188,24 +235,34 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   }
 
   Future<void> _discoverLaptop({bool silent = false}) async {
-    setState(() { _syncing = true; _error = null; });
+    setState(() {
+      _syncing = true;
+      _error = null;
+    });
     final client = MDnsClient();
     try {
       await client.start();
-      await for (final PtrResourceRecord pointer in client.lookup<PtrResourceRecord>(
-        ResourceRecordQuery.serverPointer('_pantry._tcp.local'),
-      )) {
-        await for (final SrvResourceRecord service in client.lookup<SrvResourceRecord>(
-          ResourceRecordQuery.service(pointer.domainName),
-        )) {
-          final host = service.target;
-          await for (final IPAddressResourceRecord address in client.lookup<IPAddressResourceRecord>(
-            ResourceRecordQuery.addressIPv4(host),
+      await for (final PtrResourceRecord pointer
+          in client.lookup<PtrResourceRecord>(
+            ResourceRecordQuery.serverPointer('_pantry._tcp.local'),
           )) {
-            final discovered = 'http://${address.address.address}:${service.port}';
+        await for (final SrvResourceRecord service
+            in client.lookup<SrvResourceRecord>(
+              ResourceRecordQuery.service(pointer.domainName),
+            )) {
+          final host = service.target;
+          await for (final IPAddressResourceRecord address
+              in client.lookup<IPAddressResourceRecord>(
+                ResourceRecordQuery.addressIPv4(host),
+              )) {
+            final discovered =
+                'http://${address.address.address}:${service.port}';
             await _store.setServerUrl(discovered);
             if (!mounted) return;
-            setState(() { _serverUrl = discovered; _syncing = false; });
+            setState(() {
+              _serverUrl = discovered;
+              _syncing = false;
+            });
             await _sync();
             if (!silent) _message('Found and synced with Pantry laptop');
             return;
@@ -214,7 +271,12 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       }
       throw Exception('Pantry laptop was not found');
     } catch (_) {
-      if (mounted) setState(() { _syncing = false; if (!silent) _error = 'Pantry laptop was not found on this Wi-Fi network.'; });
+      if (mounted)
+        setState(() {
+          _syncing = false;
+          if (!silent)
+            _error = 'Pantry laptop was not found on this Wi-Fi network.';
+        });
     } finally {
       client.stop();
     }
@@ -250,7 +312,18 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     final stamp = DateTime.now().toUtc().toIso8601String();
     final id = DateTime.now().millisecondsSinceEpoch;
     _items = [
-      {'id': id, 'shoppingId': shoppingItem['id'], 'name': shoppingItem['name'], 'category': shoppingItem['category'] ?? 'Pantry', 'quantity': shoppingItem['note'] ?? '', 'date': shoppingItem['date'] ?? '2026-09-30', 'icon': shoppingItem['icon'] ?? '🛒', 'status': 'ok', 'createdAt': stamp, 'updatedAt': stamp},
+      {
+        'id': id,
+        'shoppingId': shoppingItem['id'],
+        'name': shoppingItem['name'],
+        'category': shoppingItem['category'] ?? 'Pantry',
+        'quantity': shoppingItem['note'] ?? '',
+        'date': shoppingItem['date'] ?? '2026-09-30',
+        'icon': shoppingItem['icon'] ?? '🛒',
+        'status': 'ok',
+        'createdAt': stamp,
+        'updatedAt': stamp,
+      },
       ..._items,
     ];
     shoppingItem['done'] = 1;
@@ -284,8 +357,14 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
             title: const Text('Remove item?'),
             content: Text('Remove $name from Pantry?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Remove'),
+              ),
             ],
           ),
         ) ??
@@ -293,11 +372,17 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   }
 
   Future<void> _editInventoryItem(Map<String, dynamic> item) async {
-    final nameController = TextEditingController(text: item['name'] as String? ?? '');
-    final quantityController = TextEditingController(text: item['quantity'] as String? ?? '');
+    final nameController = TextEditingController(
+      text: item['name'] as String? ?? '',
+    );
+    final quantityController = TextEditingController(
+      text: item['quantity'] as String? ?? '',
+    );
     String category = item['category'] as String? ?? 'Pantry';
     String status = item['status'] as String? ?? 'ok';
-    DateTime bestBefore = DateTime.tryParse(item['date'] as String? ?? '') ?? DateTime.now().add(const Duration(days: 7));
+    DateTime bestBefore =
+        DateTime.tryParse(item['date'] as String? ?? '') ??
+        DateTime.now().add(const Duration(days: 7));
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -307,15 +392,28 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Item name')),
-                TextField(controller: quantityController, decoration: const InputDecoration(labelText: 'Quantity')),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Item name'),
+                ),
+                TextField(
+                  controller: quantityController,
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                ),
                 DropdownButtonFormField<String>(
                   initialValue: category,
                   decoration: const InputDecoration(labelText: 'Category'),
-                  items: const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-                      .toList(),
-                  onChanged: (value) => setDialogState(() => category = value ?? 'Pantry'),
+                  items:
+                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => category = value ?? 'Pantry'),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: status,
@@ -325,27 +423,39 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                     DropdownMenuItem(value: 'low', child: Text('Running low')),
                     DropdownMenuItem(value: 'soon', child: Text('Use soon')),
                   ],
-                  onChanged: (value) => setDialogState(() => status = value ?? 'ok'),
+                  onChanged: (value) =>
+                      setDialogState(() => status = value ?? 'ok'),
                 ),
                 TextButton.icon(
                   onPressed: () async {
                     final picked = await showDatePicker(
                       context: context,
                       initialDate: bestBefore,
-                      firstDate: DateTime.now().subtract(const Duration(days: 3650)),
+                      firstDate: DateTime.now().subtract(
+                        const Duration(days: 3650),
+                      ),
                       lastDate: DateTime.now().add(const Duration(days: 3650)),
                     );
-                    if (picked != null) setDialogState(() => bestBefore = picked);
+                    if (picked != null)
+                      setDialogState(() => bestBefore = picked);
                   },
                   icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                  label: Text('Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'),
+                  label: Text(
+                    'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                  ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save'),
+            ),
           ],
         ),
       ),
@@ -356,7 +466,8 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
       ..['quantity'] = quantityController.text.trim()
       ..['category'] = category
       ..['status'] = status
-      ..['date'] = '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'
+      ..['date'] =
+          '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'
       ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
@@ -383,27 +494,44 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                 TextField(
                   controller: nameController,
                   autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Item name', hintText: 'e.g. Milk'),
+                  decoration: const InputDecoration(
+                    labelText: 'Item name',
+                    hintText: 'e.g. Milk',
+                  ),
                 ),
                 TextField(
                   controller: quantityController,
-                  decoration: const InputDecoration(labelText: 'Quantity', hintText: 'e.g. 2 bottles'),
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    hintText: 'e.g. 2 bottles',
+                  ),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: category,
                   decoration: const InputDecoration(labelText: 'Category'),
-                  items: const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-                      .toList(),
-                  onChanged: (value) => setDialogState(() => category = value ?? 'Pantry'),
+                  items:
+                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) =>
+                      setDialogState(() => category = value ?? 'Pantry'),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: who,
                   decoration: const InputDecoration(labelText: 'Added by'),
                   items: const ['Navin', 'Vani']
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
                       .toList(),
-                  onChanged: (value) => setDialogState(() => who = value ?? 'Navin'),
+                  onChanged: (value) =>
+                      setDialogState(() => who = value ?? 'Navin'),
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -414,26 +542,35 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
                         context: context,
                         initialDate: bestBefore,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 3650),
+                        ),
                       );
-                      if (picked != null) setDialogState(() => bestBefore = picked);
+                      if (picked != null)
+                        setDialogState(() => bestBefore = picked);
                     },
                     icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                    label: Text('Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}'),
+                    label: Text(
+                      'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
             FilledButton(
               onPressed: () => Navigator.pop(context, {
                 'name': nameController.text.trim(),
                 'quantity': quantityController.text.trim(),
                 'category': category,
                 'who': who,
-                'date': '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                'date':
+                    '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
               }),
               child: const Text('Add'),
             ),
@@ -443,7 +580,9 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     );
   }
 
-  void _message(String value) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  void _message(String value) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(value)));
 
   String _greeting() {
     final hour = DateTime.now().hour;
@@ -457,16 +596,20 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return value;
     final local = parsed.toLocal();
-    final date = '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
-    final time = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    final date =
+        '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
     return '$date at $time';
   }
 
   String _inventorySubtitle(Map<String, dynamic> item) {
     final details = <String>[
-      if ((item['quantity'] as String? ?? '').trim().isNotEmpty) (item['quantity'] as String).trim(),
+      if ((item['quantity'] as String? ?? '').trim().isNotEmpty)
+        (item['quantity'] as String).trim(),
       item['category'] as String? ?? 'Pantry',
-      if ((item['date'] as String? ?? '').trim().isNotEmpty) item['date'] as String,
+      if ((item['date'] as String? ?? '').trim().isNotEmpty)
+        item['date'] as String,
     ];
     return details.join(' · ');
   }
@@ -475,85 +618,266 @@ class _PantryHomePageState extends State<PantryHomePage> with WidgetsBindingObse
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Pantry'), Text('Family stock', style: TextStyle(fontSize: 11, color: Colors.grey))]),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Pantry'),
+            Text(
+              'Family stock',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(onPressed: _syncing ? null : _discoverLaptop, tooltip: 'Find laptop', icon: const Icon(Icons.wifi_find)),
-          IconButton(onPressed: _configureLaptop, tooltip: 'Configure laptop', icon: const Icon(Icons.laptop_mac_outlined)),
-          IconButton(onPressed: _configureMember, tooltip: 'Choose family member', icon: const Icon(Icons.person_outline)),
-          IconButton(onPressed: _syncing ? null : _sync, tooltip: 'Sync with laptop', icon: _syncing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.sync)),
+          IconButton(
+            onPressed: _syncing ? null : _discoverLaptop,
+            tooltip: 'Find laptop',
+            icon: const Icon(Icons.wifi_find),
+          ),
+          IconButton(
+            onPressed: _configureLaptop,
+            tooltip: 'Configure laptop',
+            icon: const Icon(Icons.laptop_mac_outlined),
+          ),
+          IconButton(
+            onPressed: _configureMember,
+            tooltip: 'Choose family member',
+            icon: const Icon(Icons.person_outline),
+          ),
+          IconButton(
+            onPressed: _syncing ? null : _sync,
+            tooltip: 'Sync with laptop',
+            icon: _syncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+          ),
         ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(18), children: [
-              if (_error != null) Card(color: Colors.orange.shade50, child: Padding(padding: const EdgeInsets.all(12), child: Text(_error!))),
-              Text(_greeting(), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('${_items.length} items at home', style: const TextStyle(color: Colors.grey)),
-              _ConnectionBanner(status: _connectionStatus, serverUrl: _serverUrl, onRetry: _sync),
-              if (_lastSyncedAt != null) Text('Last synced ${_formatTimestamp(_lastSyncedAt)}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-              const SizedBox(height: 18),
-              Row(children: [
-                _StatCard(label: 'Inventory', value: '${_items.length}', icon: Icons.inventory_2_outlined),
-                const SizedBox(width: 10),
-                _StatCard(label: 'To buy', value: '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}', icon: Icons.shopping_cart_outlined),
-              ]),
-              const SizedBox(height: 22),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Inventory', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                Text('${_items.length} items', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ]),
-              if (_items.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text('Your inventory is empty.', style: TextStyle(color: Colors.grey)))
-              else
-                ..._items.map((item) => Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: const Color(0xffe5f0e7),
-                      child: Text(item['icon'] as String? ?? '🛒'),
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 36),
+                children: [
+                  if (_error != null)
+                    Card(
+                      color: Colors.orange.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(_error!),
+                      ),
                     ),
-                    title: Text(item['name'] as String? ?? ''),
-                    subtitle: Text(_inventorySubtitle(item)),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(onPressed: () => _editInventoryItem(item), icon: const Icon(Icons.edit_outlined)),
-                      IconButton(onPressed: () => _deleteInventoryItem(item), icon: const Icon(Icons.delete_outline)),
-                    ]),
+                  Text(
+                    _greeting(),
+                    style: Theme.of(context).textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                )),
-              const SizedBox(height: 22),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text('Shopping list', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                Row(children: [
-                  Text(_memberName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                  TextButton.icon(onPressed: _addShoppingItem, icon: const Icon(Icons.add), label: const Text('Add')),
-                ]),
-              ]),
-              if (_shopping.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Text('Your shopping list is empty.', style: TextStyle(color: Colors.grey))),
-              ..._shopping.map((item) => Card(
-                child: ListTile(
-                  leading: Checkbox(value: item['done'] == 1 || item['done'] == true, onChanged: (_) => _markPicked(item)),
-                  title: Text(item['name'] as String, style: TextStyle(decoration: item['done'] == 1 || item['done'] == true ? TextDecoration.lineThrough : null)),
-                  subtitle: Text('${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}'),
-                  trailing: IconButton(onPressed: () => _deleteShoppingItem(item), icon: const Icon(Icons.delete_outline)),
-                ),
-              )),
-            ])),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_items.length} items at home',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  _ConnectionBanner(
+                    status: _connectionStatus,
+                    serverUrl: _serverUrl,
+                    onRetry: _sync,
+                  ),
+                  if (_lastSyncedAt != null)
+                    Text(
+                      'Last synced ${_formatTimestamp(_lastSyncedAt)}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      _StatCard(
+                        label: 'Inventory',
+                        value: '${_items.length}',
+                        icon: Icons.inventory_2_outlined,
+                      ),
+                      const SizedBox(width: 10),
+                      _StatCard(
+                        label: 'To buy',
+                        value:
+                            '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}',
+                        icon: Icons.shopping_cart_outlined,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Inventory',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        '${_items.length} items',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'Your inventory is empty.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  else
+                    ..._items.map(
+                      (item) => Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xffe5f0e7),
+                            child: Text(item['icon'] as String? ?? '🛒'),
+                          ),
+                          title: Text(item['name'] as String? ?? ''),
+                          subtitle: Text(_inventorySubtitle(item)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () => _editInventoryItem(item),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                onPressed: () => _deleteInventoryItem(item),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 22),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Shopping list',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            _memberName,
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _addShoppingItem,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (_shopping.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'Your shopping list is empty.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ..._shopping.map(
+                    (item) => Card(
+                      child: ListTile(
+                        leading: Checkbox(
+                          value: item['done'] == 1 || item['done'] == true,
+                          onChanged: (_) => _markPicked(item),
+                        ),
+                        title: Text(
+                          item['name'] as String,
+                          style: TextStyle(
+                            decoration:
+                                item['done'] == 1 || item['done'] == true
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${item['category'] ?? 'Pantry'} · Added by ${item['who'] ?? 'Unknown'} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
+                        ),
+                        trailing: IconButton(
+                          onPressed: () => _deleteShoppingItem(item),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
   final String label;
   final String value;
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Expanded(child: Card(child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [Icon(icon, color: const Color(0xff628c6d)), const SizedBox(width: 10), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)), Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold))])]))));
+  Widget build(BuildContext context) => Expanded(
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xff628c6d)),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _ConnectionBanner extends StatelessWidget {
-  const _ConnectionBanner({required this.status, required this.serverUrl, required this.onRetry});
+  const _ConnectionBanner({
+    required this.status,
+    required this.serverUrl,
+    required this.onRetry,
+  });
   final String status;
   final String serverUrl;
   final Future<bool> Function() onRetry;
@@ -562,17 +886,41 @@ class _ConnectionBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final connected = status == 'Connected';
     final syncing = status == 'Syncing';
-    final color = connected ? const Color(0xff628c6d) : syncing ? Colors.orange : Colors.grey;
+    final color = connected
+        ? const Color(0xff628c6d)
+        : syncing
+        ? Colors.orange
+        : Colors.grey;
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        Icon(syncing ? Icons.sync : connected ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 17, color: color),
-        const SizedBox(width: 8),
-        Expanded(child: Text('$status · $serverUrl', style: TextStyle(color: color, fontSize: 11), overflow: TextOverflow.ellipsis)),
-        if (!connected && !syncing) TextButton(onPressed: onRetry, child: const Text('Sync')),
-      ]),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            syncing
+                ? Icons.sync
+                : connected
+                ? Icons.cloud_done_outlined
+                : Icons.cloud_off_outlined,
+            size: 17,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$status · $serverUrl',
+              style: TextStyle(color: color, fontSize: 11),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (!connected && !syncing)
+            TextButton(onPressed: onRetry, child: const Text('Sync')),
+        ],
+      ),
     );
   }
 }
@@ -637,30 +985,50 @@ class LocalStore {
     }
     final db = await database;
     final timestamp = DateTime.now().toUtc().toIso8601String();
-    await db.update(table, {'deletedAt': timestamp, 'updatedAt': timestamp}, where: 'id = ?', whereArgs: [id]);
+    await db.update(
+      table,
+      {'deletedAt': timestamp, 'updatedAt': timestamp},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<Database> get database async {
     if (_database != null) return _database!;
     final directory = await getApplicationDocumentsDirectory();
-    _database = await openDatabase(path.join(directory.path, 'pantry_mobile.db'), version: 2, onCreate: (db, version) async {
-      await db.execute('CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, category TEXT, quantity TEXT, date TEXT, icon TEXT, status TEXT)');
-      await db.execute('CREATE TABLE shopping (id INTEGER PRIMARY KEY, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, note TEXT, category TEXT, date TEXT, icon TEXT, done INTEGER, who TEXT)');
-    }, onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        await db.execute('ALTER TABLE items ADD COLUMN deletedAt TEXT');
-        await db.execute('ALTER TABLE shopping ADD COLUMN deletedAt TEXT');
-      }
-    });
+    _database = await openDatabase(
+      path.join(directory.path, 'pantry_mobile.db'),
+      version: 2,
+      onCreate: (db, version) async {
+        await db.execute(
+          'CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, category TEXT, quantity TEXT, date TEXT, icon TEXT, status TEXT)',
+        );
+        await db.execute(
+          'CREATE TABLE shopping (id INTEGER PRIMARY KEY, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, note TEXT, category TEXT, date TEXT, icon TEXT, done INTEGER, who TEXT)',
+        );
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE items ADD COLUMN deletedAt TEXT');
+          await db.execute('ALTER TABLE shopping ADD COLUMN deletedAt TEXT');
+        }
+      },
+    );
     return _database!;
   }
 
   Future<PantryData> read() async {
     final db = await database;
-    return PantryData(await db.query('items', orderBy: 'id DESC'), await db.query('shopping', orderBy: 'id DESC'));
+    return PantryData(
+      await db.query('items', orderBy: 'id DESC'),
+      await db.query('shopping', orderBy: 'id DESC'),
+    );
   }
 
-  Future<void> write(List<Map<String, dynamic>> items, List<Map<String, dynamic>> shopping) async {
+  Future<void> write(
+    List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>> shopping,
+  ) async {
     final db = await database;
     await db.transaction((txn) async {
       await txn.delete('items');
@@ -681,14 +1049,27 @@ class LocalStore {
 
   Future<PantryData> sync(String baseUrl) async {
     final local = await read();
-    final response = await http.put(
-      Uri.parse('$baseUrl/api/sync'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'items': local.items, 'shopping': local.shopping}),
-    ).timeout(const Duration(seconds: 5));
+    final response = await http
+        .put(
+          Uri.parse('$baseUrl/api/sync'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'items': local.items, 'shopping': local.shopping}),
+        )
+        .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) throw Exception('Sync failed');
     final payload = jsonDecode(response.body) as Map<String, dynamic>;
-    final data = PantryData(List<Map<String, dynamic>>.from((payload['items'] as List).map((item) => Map<String, dynamic>.from(item))), List<Map<String, dynamic>>.from((payload['shopping'] as List).map((item) => Map<String, dynamic>.from(item))));
+    final data = PantryData(
+      List<Map<String, dynamic>>.from(
+        (payload['items'] as List).map(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      ),
+      List<Map<String, dynamic>>.from(
+        (payload['shopping'] as List).map(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      ),
+    );
     await write(data.items, data.shopping);
     return data;
   }
