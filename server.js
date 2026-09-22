@@ -176,8 +176,8 @@ const server = http.createServer((request, response) => {
 
 server.listen(port, host, () => {
   const bonjour = new Bonjour();
-  bonjour.publish({name: "Pantry", type: "pantry", protocol: "tcp", port});
-  console.log(`Pantry running at http://localhost:${port}`);
+  bonjour.publish({name: "Stockd", type: "pantry", protocol: "tcp", port});
+  console.log(`Stockd running at http://localhost:${port}`);
   console.log(`Home network access: http://<this-laptop-ip>:${port}`);
   console.log(`SQLite database: ${path.join(root, "pantry.sqlite")}`);
 });

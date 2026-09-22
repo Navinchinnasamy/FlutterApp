@@ -1,4 +1,4 @@
-# Pantry
+# Stockd
 
 Local-first grocery stock tracking for a household.
 
