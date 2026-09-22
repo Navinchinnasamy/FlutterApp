@@ -41,13 +41,14 @@ class PantryHomePage extends StatefulWidget {
 
 class _PantryHomePageState extends State<PantryHomePage>
     with WidgetsBindingObserver {
+  static const _defaultServerUrl = 'http://192.168.1.24:3000';
   final LocalStore _store = LocalStore();
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _shopping = [];
   bool _loading = true;
   bool _syncing = false;
   String? _error;
-  String _serverUrl = 'http://localhost:3000';
+  String _serverUrl = _defaultServerUrl;
   String? _lastSyncedAt;
   String _connectionStatus = 'Checking connection';
   String _memberName = 'Navin';
@@ -100,6 +101,9 @@ class _PantryHomePageState extends State<PantryHomePage>
             .toList();
         _loading = false;
       });
+      if (!await _store.hasConfiguredMember() && mounted) {
+        await _configureMember(initial: true);
+      }
       await _checkConnection();
       if (retryPending && await _store.hasPendingSync()) {
         await _autoSync();
@@ -171,7 +175,11 @@ class _PantryHomePageState extends State<PantryHomePage>
   }
 
   Future<void> _autoSync() async {
-    if (!await _sync()) {
+    final host = Uri.tryParse(_serverUrl)?.host;
+    if (!await _sync() &&
+        host != null &&
+        host != 'localhost' &&
+        host != '127.0.0.1') {
       await _discoverLaptop(silent: true);
     }
   }
@@ -222,12 +230,20 @@ class _PantryHomePageState extends State<PantryHomePage>
     _message('Laptop address saved');
   }
 
-  Future<void> _configureMember() async {
+  Future<void> _configureMember({bool initial = false}) async {
     final selected = await showDialog<String>(
       context: context,
+      barrierDismissible: !initial,
       builder: (context) => SimpleDialog(
-        title: const Text('Who is using this iPhone?'),
+        title: Text(
+          initial ? 'Welcome to Pantry' : 'Who is using this iPhone?',
+        ),
         children: [
+          if (initial)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+              child: Text('Choose the family member using this device.'),
+            ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'Navin'),
             child: const Text('Navin'),
@@ -241,6 +257,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     );
     if (selected == null) return;
     await _store.setMemberName(selected);
+    await _store.setMemberConfigured();
     if (mounted) {
       setState(() => _memberName = selected);
       _message('New items will be added by $selected');
@@ -450,7 +467,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         }
       }
       throw Exception('Pantry laptop was not found');
-    } catch (_) {
+    } catch (error) {
       if (mounted)
         setState(() {
           _syncing = false;
@@ -1217,7 +1234,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _PantrySplash()
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
@@ -1691,6 +1708,54 @@ class _StatCard extends StatelessWidget {
   );
 }
 
+class _PantrySplash extends StatelessWidget {
+  const _PantrySplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xfff7f8f4),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: const Color(0xffe5f0e7),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                size: 48,
+                color: Color(0xff628c6d),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Pantry',
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Family stock, together',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 28),
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ConnectionBanner extends StatelessWidget {
   const _ConnectionBanner({
     required this.status,
@@ -1759,7 +1824,13 @@ class LocalStore {
 
   Future<String> serverUrl() async {
     final preferences = await SharedPreferences.getInstance();
-    return preferences.getString('server_url') ?? 'http://localhost:3000';
+    final saved = preferences.getString('server_url');
+    if (saved == null || saved == 'http://localhost:3000') {
+      const defaultUrl = 'http://192.168.1.24:3000';
+      await preferences.setString('server_url', defaultUrl);
+      return defaultUrl;
+    }
+    return saved;
   }
 
   Future<void> setServerUrl(String value) async {
@@ -1785,6 +1856,16 @@ class LocalStore {
   Future<void> setMemberName(String value) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('member_name', value);
+  }
+
+  Future<bool> hasConfiguredMember() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool('member_configured') ?? false;
+  }
+
+  Future<void> setMemberConfigured() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('member_configured', true);
   }
 
   Future<bool> hasPendingSync() async {
