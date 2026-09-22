@@ -25,6 +25,18 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff628c6d)),
         scaffoldBackgroundColor: const Color(0xfff7f8f4),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xfff7f8f4),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 1,
+          margin: EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+          ),
+        ),
         useMaterial3: true,
       ),
       home: const PantryHomePage(),
@@ -1277,6 +1289,10 @@ class _PantryHomePageState extends State<PantryHomePage>
                         label: 'Inventory',
                         value: '${_items.length}',
                         icon: Icons.inventory_2_outlined,
+                        onTap: () => setState(() {
+                          _selectedSection = 0;
+                          _shoppingFilter = 'To buy';
+                        }),
                       ),
                       const SizedBox(width: 10),
                       _StatCard(
@@ -1284,6 +1300,10 @@ class _PantryHomePageState extends State<PantryHomePage>
                         value:
                             '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}',
                         icon: Icons.shopping_cart_outlined,
+                        onTap: () => setState(() {
+                          _selectedSection = 1;
+                          _shoppingFilter = 'To buy';
+                        }),
                       ),
                     ],
                   ),
@@ -1662,6 +1682,11 @@ class _PantryHomePageState extends State<PantryHomePage>
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _selectedSection == 0 ? _addInventoryItem : _addShoppingItem,
+        icon: const Icon(Icons.add),
+        label: Text(_selectedSection == 0 ? 'Inventory' : 'Shopping'),
+      ),
     );
   }
 }
@@ -1671,37 +1696,46 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    required this.onTap,
   });
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Expanded(
     child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xff628c6d)),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xffe5f0e7),
+                child: Icon(icon, color: const Color(0xff628c6d)),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     ),
