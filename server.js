@@ -112,7 +112,12 @@ function serveFile(request, response) {
   const filePath = requested === "/" ? "/index.html" : requested;
   const file = path.resolve(root, `.${decodeURIComponent(filePath)}`);
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(response, 404, {error: "Not found"});
-  const types = {".html": "text/html", ".js": "text/javascript", ".css": "text/css"};
+  const types = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".webmanifest": "application/manifest+json"
+  };
   send(response, 200, fs.readFileSync(file), types[path.extname(file)] || "application/octet-stream");
 }
 
