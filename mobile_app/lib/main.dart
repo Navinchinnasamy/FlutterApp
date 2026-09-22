@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pantry',
+      title: 'Stockd',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff628c6d)),
@@ -149,7 +149,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         _syncing = false;
         _connectionStatus = 'Connected';
       });
-      _message('Synced with Pantry laptop');
+      _message('Synced with Stockd laptop');
       return true;
     } catch (error) {
       await _store.markSyncPending();
@@ -207,7 +207,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           keyboardType: TextInputType.url,
           autocorrect: false,
           decoration: const InputDecoration(
-            labelText: 'Pantry laptop address',
+            labelText: 'Stockd laptop address',
             hintText: 'http://192.168.1.25:3000',
           ),
         ),
@@ -248,7 +248,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       barrierDismissible: !initial,
       builder: (context) => SimpleDialog(
         title: Text(
-          initial ? 'Welcome to Pantry' : 'Who is using this iPhone?',
+          initial ? 'Welcome to Stockd' : 'Who is using this iPhone?',
         ),
         children: [
           if (initial)
@@ -285,7 +285,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           shrinkWrap: true,
           children: [
             const ListTile(
-              title: Text('Pantry settings'),
+              title: Text('Stockd settings'),
               subtitle: Text('Connection and household preferences'),
             ),
             ListTile(
@@ -309,7 +309,7 @@ class _PantryHomePageState extends State<PantryHomePage>
             ListTile(
               leading: const Icon(Icons.wifi_find),
               title: const Text('Find laptop on Wi-Fi'),
-              subtitle: const Text('Discover the Pantry laptop automatically'),
+              subtitle: const Text('Discover the Stockd laptop automatically'),
               onTap: () {
                 Navigator.pop(context);
                 _discoverLaptop();
@@ -367,7 +367,7 @@ class _PantryHomePageState extends State<PantryHomePage>
       final file = File(path.join(directory.path, 'pantry-mobile-backup.json'));
       await file.writeAsString(jsonEncode(payload));
       await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], subject: 'Pantry mobile backup'),
+        ShareParams(files: [XFile(file.path)], subject: 'Stockd mobile backup'),
       );
     } catch (error) {
       if (mounted) {
@@ -400,7 +400,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           payload['format'] != 'pantry-state-v1' ||
           payload['items'] is! List ||
           payload['shopping'] is! List) {
-        throw const FormatException('Unsupported Pantry backup format');
+        throw const FormatException('Unsupported Stockd backup format');
       }
       if (!mounted) return;
       final confirmed = await showDialog<bool>(
@@ -473,18 +473,18 @@ class _PantryHomePageState extends State<PantryHomePage>
               _syncing = false;
             });
             await _sync();
-            if (!silent) _message('Found and synced with Pantry laptop');
+            if (!silent) _message('Found and synced with Stockd laptop');
             return;
           }
         }
       }
-      throw Exception('Pantry laptop was not found');
+      throw Exception('Stockd laptop was not found');
     } catch (error) {
       if (mounted)
         setState(() {
           _syncing = false;
           if (!silent)
-            _error = 'Pantry laptop was not found on this Wi-Fi network.';
+            _error = 'Stockd laptop was not found on this Wi-Fi network.';
         });
     } finally {
       client.stop();
@@ -699,7 +699,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Remove item?'),
-            content: Text('Remove $name from Pantry?'),
+            content: Text('Remove $name from Stockd?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -1204,7 +1204,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Pantry'),
+            Text('Stockd'),
             Text(
               'Family stock',
               style: TextStyle(fontSize: 11, color: Colors.grey),
@@ -1768,7 +1768,7 @@ class _PantrySplash extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Pantry',
+              'Stockd',
               style: Theme.of(context).textTheme.headlineMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
