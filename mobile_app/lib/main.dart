@@ -1777,16 +1777,16 @@ class _PantrySplash extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 88,
-              height: 88,
+              width: 150,
+              height: 150,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: const Color(0xffe5f0e7),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(30),
               ),
-              child: const Icon(
-                Icons.inventory_2_outlined,
-                size: 48,
-                color: Color(0xff628c6d),
+              child: Image.asset(
+                'lib/assets/Stockd-logo.png',
+                fit: BoxFit.cover,
               ),
             ),
             const SizedBox(height: 20),

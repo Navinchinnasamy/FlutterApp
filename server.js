@@ -116,6 +116,7 @@ function serveFile(request, response) {
     ".html": "text/html",
     ".js": "text/javascript",
     ".css": "text/css",
+    ".png": "image/png",
     ".webmanifest": "application/manifest+json"
   };
   send(response, 200, fs.readFileSync(file), types[path.extname(file)] || "application/octet-stream");
