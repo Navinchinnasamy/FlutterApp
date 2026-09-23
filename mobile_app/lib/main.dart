@@ -696,6 +696,39 @@ class _PantryHomePageState extends State<PantryHomePage>
     await _sync();
   }
 
+  Future<void> _swipeDeleteInventory(Map<String, dynamic> item) async {
+    await _store.softDelete('items', item['id']);
+    await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
+    await _load();
+    await _sync();
+  }
+
+  Future<void> _swipeDeleteShopping(Map<String, dynamic> item) async {
+    await _store.softDelete('shopping', item['id']);
+    await _store.markSyncPending();
+    if (mounted) setState(() => _syncPending = true);
+    await _load();
+    await _sync();
+  }
+
+  Widget _swipeBackground({
+    required Color color,
+    required IconData icon,
+    required Alignment alignment,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      alignment: alignment,
+      child: Icon(icon, color: Colors.white),
+    );
+  }
+
   Future<bool> _confirmDelete(String name) async {
     return await showDialog<bool>(
           context: context,
@@ -1544,40 +1577,56 @@ class _PantryHomePageState extends State<PantryHomePage>
                         )
                       else
                         ...visibleItems.map(
-                          (item) => Card(
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: const Color(0xffe5f0e7),
-                                child: Text(item['icon'] as String? ?? '🛒'),
-                              ),
-                              title: Text(item['name'] as String? ?? ''),
-                              subtitle: Text(
-                                '${_inventorySubtitle(item)} · ${_statusLabel(item['status'] as String?)}',
-                              ),
-                              isThreeLine: true,
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_expiryLabel(item['date'] as String?) !=
-                                      null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 4),
-                                      child: Icon(
-                                        Icons.warning_amber_rounded,
-                                        color: _expiryColor(
-                                          item['date'] as String?,
+                          (item) => Dismissible(
+                            key: ValueKey('inventory-${item['id']}'),
+                            direction: DismissDirection.endToStart,
+                            confirmDismiss: (_) => _confirmDelete(
+                              item['name'] as String? ?? 'this item',
+                            ),
+                            onDismissed: (_) => _swipeDeleteInventory(item),
+                            background: _swipeBackground(
+                              color: Colors.red.shade600,
+                              icon: Icons.delete_outline,
+                              alignment: Alignment.centerRight,
+                            ),
+                            child: Card(
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: const Color(0xffe5f0e7),
+                                  child: Text(item['icon'] as String? ?? '🛒'),
+                                ),
+                                title: Text(item['name'] as String? ?? ''),
+                                subtitle: Text(
+                                  '${_inventorySubtitle(item)} · ${_statusLabel(item['status'] as String?)}',
+                                ),
+                                isThreeLine: true,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (_expiryLabel(item['date'] as String?) !=
+                                        null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 4,
+                                        ),
+                                        child: Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: _expiryColor(
+                                            item['date'] as String?,
+                                          ),
                                         ),
                                       ),
+                                    IconButton(
+                                      onPressed: () => _editInventoryItem(item),
+                                      icon: const Icon(Icons.edit_outlined),
                                     ),
-                                  IconButton(
-                                    onPressed: () => _editInventoryItem(item),
-                                    icon: const Icon(Icons.edit_outlined),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _deleteInventoryItem(item),
-                                    icon: const Icon(Icons.delete_outline),
-                                  ),
-                                ],
+                                    IconButton(
+                                      onPressed: () =>
+                                          _deleteInventoryItem(item),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -1638,35 +1687,70 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       ...visibleShopping.map((item) {
                         final done = item['done'] == 1 || item['done'] == true;
-                        return Card(
-                          color: done ? Colors.grey.shade100 : null,
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: done,
-                              onChanged: done ? null : (_) => _markPicked(item),
-                            ),
-                            title: Text(
-                              item['name'] as String,
-                              style: TextStyle(
-                                decoration: done
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                color: done ? Colors.grey : null,
+                        return Dismissible(
+                          key: ValueKey('shopping-${item['id']}'),
+                          direction: done
+                              ? DismissDirection.endToStart
+                              : DismissDirection.horizontal,
+                          confirmDismiss: (direction) async {
+                            if (direction == DismissDirection.startToEnd &&
+                                !done) {
+                              return true;
+                            }
+                            return _confirmDelete(
+                              item['name'] as String? ?? 'this item',
+                            );
+                          },
+                          onDismissed: (direction) {
+                            if (direction == DismissDirection.startToEnd &&
+                                !done) {
+                              _markPicked(item);
+                            } else {
+                              _swipeDeleteShopping(item);
+                            }
+                          },
+                          background: _swipeBackground(
+                            color: const Color(0xff628c6d),
+                            icon: Icons.check,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          secondaryBackground: _swipeBackground(
+                            color: Colors.red.shade600,
+                            icon: Icons.delete_outline,
+                            alignment: Alignment.centerRight,
+                          ),
+                          child: Card(
+                            color: done ? Colors.grey.shade100 : null,
+                            child: ListTile(
+                              leading: Checkbox(
+                                value: done,
+                                onChanged: done
+                                    ? null
+                                    : (_) => _markPicked(item),
                               ),
-                            ),
-                            subtitle: Text(_shoppingSubtitle(item)),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  onPressed: () => _editShoppingItem(item),
-                                  icon: const Icon(Icons.edit_outlined),
+                              title: Text(
+                                item['name'] as String,
+                                style: TextStyle(
+                                  decoration: done
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: done ? Colors.grey : null,
                                 ),
-                                IconButton(
-                                  onPressed: () => _deleteShoppingItem(item),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
+                              ),
+                              subtitle: Text(_shoppingSubtitle(item)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _editShoppingItem(item),
+                                    icon: const Icon(Icons.edit_outlined),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _deleteShoppingItem(item),
+                                    icon: const Icon(Icons.delete_outline),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
