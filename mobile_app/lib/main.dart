@@ -1171,7 +1171,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         _selectedCategory == 'All' || item['category'] == _selectedCategory;
     if (!categoryMatches) return false;
     final statusMatches =
-        _selectedSection != 0 ||
+        _selectedSection != 1 ||
         _selectedStatus == 'All' ||
         item['status'] == _selectedStatus;
     if (!statusMatches) return false;
@@ -1301,185 +1301,193 @@ class _PantryHomePageState extends State<PantryHomePage>
                           child: Text(_error!),
                         ),
                       ),
-                    Text(
-                      _greeting(),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_items.length} items at home',
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    _ConnectionBanner(
-                      status: _connectionStatus,
-                      serverUrl: _serverUrl,
-                      pending: _syncPending,
-                      onRetry: _sync,
-                    ),
-                    if (_lastSyncedAt != null)
+                    if (_selectedSection == 0) ...[
                       Text(
-                        'Last synced ${_formatTimestamp(_lastSyncedAt)}',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
+                        '${_greeting()}, $_memberName',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        _StatCard(
-                          label: 'Inventory',
-                          value: '${_items.length}',
-                          icon: Icons.inventory_2_outlined,
-                          onTap: () => setState(() {
-                            _selectedSection = 0;
-                            _shoppingFilter = 'To buy';
-                          }),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_items.length} items at home',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      _ConnectionBanner(
+                        status: _connectionStatus,
+                        serverUrl: _serverUrl,
+                        pending: _syncPending,
+                        onRetry: _sync,
+                      ),
+                      if (_lastSyncedAt != null)
+                        Text(
+                          'Last synced ${_formatTimestamp(_lastSyncedAt)}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
                         ),
-                        const SizedBox(width: 10),
-                        _StatCard(
-                          label: 'To buy',
-                          value:
-                              '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}',
-                          icon: Icons.shopping_cart_outlined,
-                          onTap: () => setState(() {
-                            _selectedSection = 1;
-                            _shoppingFilter = 'To buy';
-                          }),
-                        ),
-                      ],
-                    ),
-                    if (_attentionItems().isNotEmpty) ...[
                       const SizedBox(height: 18),
-                      Card(
-                        color: Colors.orange.shade50,
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.warning_amber_rounded,
-                                    color: Colors.orange.shade800,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Needs attention',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ..._attentionItems()
-                                  .take(3)
-                                  .map(
-                                    (item) => Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        '• ${item['name']} · ${_statusLabel(item['status'] as String?)}${_expiryLabel(item['date'] as String?) == null ? '' : ' · ${_expiryLabel(item['date'] as String?)}'}',
+                      Row(
+                        children: [
+                          _StatCard(
+                            label: 'Inventory',
+                            value: '${_items.length}',
+                            icon: Icons.inventory_2_outlined,
+                            onTap: () => setState(() {
+                              _selectedSection = 1;
+                              _shoppingFilter = 'To buy';
+                            }),
+                          ),
+                          const SizedBox(width: 10),
+                          _StatCard(
+                            label: 'To buy',
+                            value:
+                                '${_shopping.where((item) => item['done'] != 1 && item['done'] != true).length}',
+                            icon: Icons.shopping_cart_outlined,
+                            onTap: () => setState(() {
+                              _selectedSection = 2;
+                              _shoppingFilter = 'To buy';
+                            }),
+                          ),
+                        ],
+                      ),
+                      if (_attentionItems().isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        Card(
+                          color: Colors.orange.shade50,
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Colors.orange.shade800,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Needs attention',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                ..._attentionItems()
+                                    .take(3)
+                                    .map(
+                                      (item) => Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          '• ${item['name']} · ${_statusLabel(item['status'] as String?)}${_expiryLabel(item['date'] as String?) == null ? '' : ' · ${_expiryLabel(item['date'] as String?)}'}',
+                                        ),
+                                      ),
+                                    ),
+                                if (_attentionItems().length > 3)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      '+ ${_attentionItems().length - 3} more',
+                                      style: const TextStyle(
+                                        color: Colors.grey,
                                       ),
                                     ),
                                   ),
-                              if (_attentionItems().length > 3)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    '+ ${_attentionItems().length - 3} more',
-                                    style: const TextStyle(color: Colors.grey),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (_recentActivity().isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        Text(
+                          'Recent activity',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Card(
+                          child: Column(
+                            children: _recentActivity()
+                                .map(
+                                  (item) => ListTile(
+                                    dense: true,
+                                    leading: Icon(
+                                      item['_type'] == 'Inventory'
+                                          ? Icons.inventory_2_outlined
+                                          : Icons.shopping_cart_outlined,
+                                    ),
+                                    title: Text(item['name'] as String? ?? ''),
+                                    subtitle: Text(
+                                      '${item['_type']} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
+                                    ),
                                   ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    ],
+                    if (_selectedSection == 1 || _selectedSection == 2) ...[
+                      const SizedBox(height: 22),
+                      TextField(
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                        decoration: InputDecoration(
+                          hintText: _selectedSection == 1
+                              ? 'Search inventory'
+                              : 'Search shopping list',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () =>
+                                      setState(() => _searchQuery = ''),
+                                  icon: const Icon(Icons.clear),
                                 ),
-                            ],
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
                           ),
                         ),
                       ),
-                    ],
-                    if (_recentActivity().isNotEmpty) ...[
-                      const SizedBox(height: 18),
-                      Text(
-                        'Recent activity',
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Card(
-                        child: Column(
-                          children: _recentActivity()
-                              .map(
-                                (item) => ListTile(
-                                  dense: true,
-                                  leading: Icon(
-                                    item['_type'] == 'Inventory'
-                                        ? Icons.inventory_2_outlined
-                                        : Icons.shopping_cart_outlined,
-                                  ),
-                                  title: Text(item['name'] as String? ?? ''),
-                                  subtitle: Text(
-                                    '${item['_type']} · Updated ${_formatTimestamp(item['updatedAt'] as String?)}',
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: categories.contains(_selectedCategory)
+                            ? _selectedCategory
+                            : 'All',
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          prefixIcon: const Icon(Icons.category_outlined),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
-                      ),
-                    ],
-                    const SizedBox(height: 22),
-                    TextField(
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
-                      decoration: InputDecoration(
-                        hintText: _selectedSection == 0
-                            ? 'Search inventory'
-                            : 'Search shopping list',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchQuery.isEmpty
-                            ? null
-                            : IconButton(
-                                onPressed: () =>
-                                    setState(() => _searchQuery = ''),
-                                icon: const Icon(Icons.clear),
+                        items: categories
+                            .map(
+                              (category) => DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
                               ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _selectedCategory = value ?? 'All'),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      initialValue: categories.contains(_selectedCategory)
-                          ? _selectedCategory
-                          : 'All',
-                      decoration: InputDecoration(
-                        labelText: 'Category',
-                        prefixIcon: const Icon(Icons.category_outlined),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      items: categories
-                          .map(
-                            (category) => DropdownMenuItem(
-                              value: category,
-                              child: Text(category),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) =>
-                          setState(() => _selectedCategory = value ?? 'All'),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_selectedSection == 0) ...[
+                      const SizedBox(height: 16),
+                    ],
+                    if (_selectedSection == 1) ...[
                       DropdownButtonFormField<String>(
                         initialValue: _selectedStatus,
                         decoration: InputDecoration(
@@ -1512,7 +1520,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                       ),
                       const SizedBox(height: 16),
                     ],
-                    if (_selectedSection == 0) ...[
+                    if (_selectedSection == 1) ...[
                       DropdownButtonFormField<String>(
                         initialValue: _inventorySort,
                         decoration: InputDecoration(
@@ -1631,7 +1639,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                             ),
                           ),
                         ),
-                    ] else ...[
+                    ] else if (_selectedSection == 2) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1756,6 +1764,62 @@ class _PantryHomePageState extends State<PantryHomePage>
                         );
                       }),
                     ],
+                    if (_selectedSection == 3) ...[
+                      Text(
+                        'Settings',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Manage Stockd on this device.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.laptop_mac_outlined),
+                              title: const Text('Laptop connection'),
+                              subtitle: Text(_serverUrl),
+                              onTap: _configureLaptop,
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.wifi_find),
+                              title: const Text('Find laptop on Wi-Fi'),
+                              onTap: _syncing ? null : _discoverLaptop,
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.person_outline),
+                              title: const Text('Family member'),
+                              subtitle: Text(_memberName),
+                              onTap: _configureMember,
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.sync),
+                              title: const Text('Sync now'),
+                              subtitle: Text(
+                                _syncPending
+                                    ? 'Changes waiting to sync'
+                                    : 'Last synced ${_formatTimestamp(_lastSyncedAt)}',
+                              ),
+                              onTap: _syncing ? null : _sync,
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.download_outlined),
+                              title: const Text('Export local backup'),
+                              onTap: _exportBackup,
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.upload_file_outlined),
+                              title: const Text('Import local backup'),
+                              onTap: _importBackup,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1775,6 +1839,11 @@ class _PantryHomePageState extends State<PantryHomePage>
         },
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Home',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
             selectedIcon: Icon(Icons.inventory_2),
             label: 'Inventory',
@@ -1782,15 +1851,24 @@ class _PantryHomePageState extends State<PantryHomePage>
           NavigationDestination(
             icon: Icon(Icons.shopping_cart_outlined),
             selectedIcon: Icon(Icons.shopping_cart),
-            label: 'Shopping List',
+            label: 'Shopping',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _selectedSection == 0 ? _addInventoryItem : _addShoppingItem,
-        icon: const Icon(Icons.add),
-        label: Text(_selectedSection == 0 ? 'Inventory' : 'Shopping'),
-      ),
+      floatingActionButton: _selectedSection == 1 || _selectedSection == 2
+          ? FloatingActionButton.extended(
+              onPressed: _selectedSection == 1
+                  ? _addInventoryItem
+                  : _addShoppingItem,
+              icon: const Icon(Icons.add),
+              label: Text(_selectedSection == 1 ? 'Add item' : 'Add to list'),
+            )
+          : null,
     );
   }
 }
