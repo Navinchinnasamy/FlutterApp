@@ -517,6 +517,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     if (mounted) setState(() => _syncPending = true);
     setState(() {});
     await _sync();
+    if (mounted) _offerAddAnother('shopping');
   }
 
   Future<void> _editShoppingItem(Map<String, dynamic> item) async {
@@ -676,6 +677,27 @@ class _PantryHomePageState extends State<PantryHomePage>
     await _store.markSyncPending();
     if (mounted) setState(() => _syncPending = true);
     await _sync();
+    if (mounted) _offerAddAnother('inventory');
+  }
+
+  void _offerAddAnother(String type) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            type == 'inventory'
+                ? 'Item added to inventory'
+                : 'Added to shopping list',
+          ),
+          action: SnackBarAction(
+            label: 'Add another',
+            onPressed: type == 'inventory'
+                ? _addInventoryItem
+                : _addShoppingItem,
+          ),
+        ),
+      );
   }
 
   Future<void> _deleteInventoryItem(Map<String, dynamic> item) async {
@@ -862,99 +884,121 @@ class _PantryHomePageState extends State<PantryHomePage>
     String who = _memberName;
     DateTime bestBefore = DateTime.now().add(const Duration(days: 7));
 
-    return showDialog<Map<String, String>>(
+    return showModalBottomSheet<Map<String, String>>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add to shopping list'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Item name',
-                    hintText: 'e.g. Milk',
+        builder: (context, setDialogState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              8,
+              24,
+              MediaQuery.viewInsetsOf(context).bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Add to shopping list',
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                ),
-                TextField(
-                  controller: quantityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    hintText: 'e.g. 2 bottles',
-                  ),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  items:
-                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) =>
-                      setDialogState(() => category = value ?? 'Pantry'),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: who,
-                  decoration: const InputDecoration(labelText: 'Added by'),
-                  items: const ['Navin', 'Vani']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged: (value) =>
-                      setDialogState(() => who = value ?? 'Navin'),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: bestBefore,
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 3650),
-                        ),
-                      );
-                      if (picked != null)
-                        setDialogState(() => bestBefore = picked);
-                    },
-                    icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                    label: Text(
-                      'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      hintText: 'e.g. Milk',
+                      prefixIcon: Icon(Icons.shopping_basket_outlined),
                     ),
                   ),
-                ),
-              ],
+                  TextField(
+                    controller: quantityController,
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity (optional)',
+                      hintText: 'e.g. 2 bottles',
+                      prefixIcon: Icon(Icons.scale_outlined),
+                    ),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items:
+                        const [
+                              'Produce',
+                              'Dairy',
+                              'Pantry',
+                              'Freezer',
+                              'Drinks',
+                            ]
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) =>
+                        setDialogState(() => category = value ?? 'Pantry'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: who,
+                    decoration: const InputDecoration(labelText: 'Added by'),
+                    items: const ['Navin', 'Vani']
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setDialogState(() => who = value ?? _memberName),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: bestBefore,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 3650),
+                          ),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => bestBefore = picked);
+                        }
+                      },
+                      icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                      label: Text(
+                        'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.pop(context, {
+                      'name': nameController.text.trim(),
+                      'quantity': quantityController.text.trim(),
+                      'category': category,
+                      'who': who,
+                      'date':
+                          '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                    }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add to list'),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, {
-                'name': nameController.text.trim(),
-                'quantity': quantityController.text.trim(),
-                'category': category,
-                'who': who,
-                'date':
-                    '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
-              }),
-              child: const Text('Add'),
-            ),
-          ],
         ),
       ),
     );
@@ -967,95 +1011,122 @@ class _PantryHomePageState extends State<PantryHomePage>
     String status = 'ok';
     DateTime bestBefore = DateTime.now().add(const Duration(days: 7));
 
-    return showDialog<Map<String, String>>(
+    return showModalBottomSheet<Map<String, String>>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add inventory item'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Item name',
-                    hintText: 'e.g. Rice',
+        builder: (context, setDialogState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              8,
+              24,
+              MediaQuery.viewInsetsOf(context).bottom + 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Add inventory item',
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                ),
-                TextField(
-                  controller: quantityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Quantity',
-                    hintText: 'e.g. 2 kg',
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Item name',
+                      hintText: 'e.g. Rice',
+                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                    ),
                   ),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Category'),
-                  items:
-                      const ['Produce', 'Dairy', 'Pantry', 'Freezer', 'Drinks']
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) =>
-                      setDialogState(() => category = value ?? 'Pantry'),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: status,
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  items: const [
-                    DropdownMenuItem(value: 'ok', child: Text('In stock')),
-                    DropdownMenuItem(value: 'low', child: Text('Running low')),
-                    DropdownMenuItem(value: 'soon', child: Text('Use soon')),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => status = value ?? 'ok'),
-                ),
-                TextButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: bestBefore,
-                      firstDate: DateTime.now().subtract(
-                        const Duration(days: 3650),
+                  TextField(
+                    controller: quantityController,
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity (optional)',
+                      hintText: 'e.g. 2 kg',
+                      prefixIcon: Icon(Icons.scale_outlined),
+                    ),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items:
+                        const [
+                              'Produce',
+                              'Dairy',
+                              'Pantry',
+                              'Freezer',
+                              'Drinks',
+                            ]
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) =>
+                        setDialogState(() => category = value ?? 'Pantry'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Stock status',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'ok', child: Text('In stock')),
+                      DropdownMenuItem(
+                        value: 'low',
+                        child: Text('Running low'),
                       ),
-                      lastDate: DateTime.now().add(const Duration(days: 3650)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => bestBefore = picked);
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                  label: Text(
-                    'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                      DropdownMenuItem(value: 'soon', child: Text('Use soon')),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => status = value ?? 'ok'),
                   ),
-                ),
-              ],
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: bestBefore,
+                        firstDate: DateTime.now().subtract(
+                          const Duration(days: 3650),
+                        ),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 3650),
+                        ),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => bestBefore = picked);
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                    label: Text(
+                      'Best before: ${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.pop(context, {
+                      'name': nameController.text.trim(),
+                      'quantity': quantityController.text.trim(),
+                      'category': category,
+                      'status': status,
+                      'date':
+                          '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
+                    }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add to inventory'),
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, {
-                'name': nameController.text.trim(),
-                'quantity': quantityController.text.trim(),
-                'category': category,
-                'status': status,
-                'date':
-                    '${bestBefore.year}-${bestBefore.month.toString().padLeft(2, '0')}-${bestBefore.day.toString().padLeft(2, '0')}',
-              }),
-              child: const Text('Add'),
-            ),
-          ],
         ),
       ),
     );
