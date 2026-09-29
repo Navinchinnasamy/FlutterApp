@@ -1088,23 +1088,24 @@ class _PantryHomePageState extends State<PantryHomePage>
     final details = <String>[
       if ((item['quantity'] as String? ?? '').trim().isNotEmpty)
         (item['quantity'] as String).trim(),
-      item['category'] as String? ?? 'Pantry',
       if ((item['date'] as String? ?? '').trim().isNotEmpty)
-        item['date'] as String,
+        'Best before ${item['date']}',
     ];
-    return details.join(' · ');
+    return details.isEmpty
+        ? 'No quantity or best-before date'
+        : details.join(' · ');
   }
 
   String _shoppingSubtitle(Map<String, dynamic> item) {
     final details = <String>[
       if ((item['note'] as String? ?? '').trim().isNotEmpty)
         (item['note'] as String).trim(),
-      item['category'] as String? ?? 'Pantry',
       if ((item['date'] as String? ?? '').trim().isNotEmpty)
         'Best before ${item['date']}',
-      'Added by ${item['who'] ?? 'Unknown'}',
     ];
-    return details.join(' · ');
+    return details.isEmpty
+        ? 'No quantity or best-before date'
+        : details.join(' · ');
   }
 
   String _statusLabel(String? status) {
@@ -1116,6 +1117,42 @@ class _PantryHomePageState extends State<PantryHomePage>
       default:
         return 'In stock';
     }
+  }
+
+  IconData _categoryIcon(String? category) {
+    switch (category) {
+      case 'Produce':
+        return Icons.eco_outlined;
+      case 'Dairy':
+        return Icons.water_drop_outlined;
+      case 'Freezer':
+        return Icons.ac_unit;
+      case 'Drinks':
+        return Icons.local_drink_outlined;
+      case 'Pantry':
+        return Icons.inventory_2_outlined;
+      default:
+        return Icons.kitchen_outlined;
+    }
+  }
+
+  Widget _itemBadge(String label, {Color? foreground, Color? background}) {
+    final color = foreground ?? const Color(0xff628c6d);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: background ?? color.withValues(alpha: .11),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 
   String? _expiryLabel(String? value) {
@@ -1460,63 +1497,63 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: categories.contains(_selectedCategory)
-                            ? _selectedCategory
-                            : 'All',
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          prefixIcon: const Icon(Icons.category_outlined),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        items: categories
-                            .map(
-                              (category) => DropdownMenuItem(
-                                value: category,
-                                child: Text(category),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: categories.map((category) {
+                            final selected = _selectedCategory == category;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(category),
+                                avatar: Icon(
+                                  category == 'All'
+                                      ? Icons.apps
+                                      : _categoryIcon(category),
+                                  size: 17,
+                                ),
+                                selected: selected,
+                                onSelected: (_) => setState(
+                                  () => _selectedCategory = category,
+                                ),
                               ),
-                            )
-                            .toList(),
-                        onChanged: (value) =>
-                            setState(() => _selectedCategory = value ?? 'All'),
+                            );
+                          }).toList(),
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
                     if (_selectedSection == 1) ...[
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedStatus,
-                        decoration: InputDecoration(
-                          labelText: 'Stock status',
-                          prefixIcon: const Icon(Icons.flag_outlined),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children:
+                              const [
+                                ('All', 'All'),
+                                ('ok', 'In stock'),
+                                ('low', 'Running low'),
+                                ('soon', 'Use soon'),
+                              ].map((entry) {
+                                final (value, label) = entry;
+                                final selected = _selectedStatus == value;
+                                final color = switch (value) {
+                                  'low' => Colors.deepOrange,
+                                  'soon' => Colors.deepPurple,
+                                  'ok' => Colors.green,
+                                  _ => Colors.blueGrey,
+                                };
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: FilterChip(
+                                    label: Text(label),
+                                    selected: selected,
+                                    onSelected: (_) =>
+                                        setState(() => _selectedStatus = value),
+                                    selectedColor: color.withValues(alpha: .16),
+                                  ),
+                                );
+                              }).toList(),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'All', child: Text('All')),
-                          DropdownMenuItem(
-                            value: 'ok',
-                            child: Text('In stock'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'low',
-                            child: Text('Running low'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'soon',
-                            child: Text('Use soon'),
-                          ),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _selectedStatus = value ?? 'All'),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -1601,29 +1638,54 @@ class _PantryHomePageState extends State<PantryHomePage>
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: const Color(0xffe5f0e7),
-                                  child: Text(item['icon'] as String? ?? '🛒'),
+                                  child: Icon(
+                                    _categoryIcon(item['category'] as String?),
+                                    color: const Color(0xff628c6d),
+                                  ),
                                 ),
                                 title: Text(item['name'] as String? ?? ''),
-                                subtitle: Text(
-                                  '${_inventorySubtitle(item)} · ${_statusLabel(item['status'] as String?)}',
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_inventorySubtitle(item)),
+                                    const SizedBox(height: 7),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 5,
+                                      children: [
+                                        _itemBadge(
+                                          item['category'] as String? ??
+                                              'Pantry',
+                                        ),
+                                        _itemBadge(
+                                          _statusLabel(
+                                            item['status'] as String?,
+                                          ),
+                                          foreground: item['status'] == 'low'
+                                              ? Colors.deepOrange
+                                              : item['status'] == 'soon'
+                                              ? Colors.deepPurple
+                                              : const Color(0xff628c6d),
+                                        ),
+                                        if (_expiryLabel(
+                                              item['date'] as String?,
+                                            ) !=
+                                            null)
+                                          _itemBadge(
+                                            _expiryLabel(
+                                              item['date'] as String?,
+                                            )!,
+                                            foreground: _expiryColor(
+                                              item['date'] as String?,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                isThreeLine: true,
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (_expiryLabel(item['date'] as String?) !=
-                                        null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 4,
-                                        ),
-                                        child: Icon(
-                                          Icons.warning_amber_rounded,
-                                          color: _expiryColor(
-                                            item['date'] as String?,
-                                          ),
-                                        ),
-                                      ),
                                     IconButton(
                                       onPressed: () => _editInventoryItem(item),
                                       icon: const Icon(Icons.edit_outlined),
@@ -1745,7 +1807,31 @@ class _PantryHomePageState extends State<PantryHomePage>
                                   color: done ? Colors.grey : null,
                                 ),
                               ),
-                              subtitle: Text(_shoppingSubtitle(item)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_shoppingSubtitle(item)),
+                                  const SizedBox(height: 7),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 5,
+                                    children: [
+                                      _itemBadge(
+                                        item['category'] as String? ?? 'Pantry',
+                                      ),
+                                      _itemBadge(
+                                        'By ${item['who'] ?? 'Unknown'}',
+                                        foreground: Colors.blueGrey,
+                                      ),
+                                      if (done)
+                                        _itemBadge(
+                                          'Picked up',
+                                          foreground: const Color(0xff628c6d),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
