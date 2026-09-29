@@ -1,5 +1,6 @@
 const http = require("node:http");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const {DatabaseSync} = require("node:sqlite");
 const {Bonjour} = require("bonjour-service");
@@ -182,7 +183,36 @@ const server = http.createServer((request, response) => {
 
 server.listen(port, host, () => {
   const bonjour = new Bonjour();
-  bonjour.publish({name: "Stockd", type: "pantry", protocol: "tcp", port});
+  const publishBeacon = () =>
+    bonjour.publish({name: "Stockd", type: "pantry", protocol: "tcp", port});
+  const networkFingerprint = () =>
+    Object.entries(os.networkInterfaces())
+      .flatMap(([name, addresses]) =>
+        (addresses || [])
+          .filter(
+            (address) =>
+              !address.internal &&
+              address.family === "IPv4" &&
+              /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(
+                address.address,
+              ),
+          )
+          .map((address) => `${name}:${address.address}`),
+      )
+      .sort()
+      .join(",");
+  let previousNetwork = networkFingerprint();
+  publishBeacon();
+  const beaconRefresh = setInterval(() => {
+    const currentNetwork = networkFingerprint();
+    if (currentNetwork === previousNetwork) return;
+    previousNetwork = currentNetwork;
+    bonjour.unpublishAll(() => {
+      publishBeacon();
+      console.log("Stockd Bonjour beacon refreshed after network change");
+    });
+  }, 10000);
+  beaconRefresh.unref();
   console.log(`Stockd running at http://localhost:${port}`);
   console.log(`Home network access: http://<this-laptop-ip>:${port}`);
   console.log(`SQLite database: ${path.join(root, "pantry.sqlite")}`);

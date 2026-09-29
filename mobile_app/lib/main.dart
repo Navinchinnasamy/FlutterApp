@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:multicast_dns/multicast_dns.dart';
 import 'package:path/path.dart' as path;
@@ -12,42 +13,95 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest_all.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
 
 void main() => runApp(const MyApp());
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _darkMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((preferences) {
+      if (mounted) {
+        setState(() => _darkMode = preferences.getBool('dark_mode') ?? false);
+      }
+    });
+  }
+
+  Future<void> _setDarkMode(bool enabled) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool('dark_mode', enabled);
+    if (mounted) setState(() => _darkMode = enabled);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Stockd',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff628c6d)),
-        scaffoldBackgroundColor: const Color(0xfff7f8f4),
-        fontFamily: 'Avenir',
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xfff7f8f4),
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 1,
-          margin: EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-          ),
-        ),
-        useMaterial3: true,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+      home: PantryHomePage(
+        darkMode: _darkMode,
+        onDarkModeChanged: _setDarkMode,
       ),
-      home: const PantryHomePage(),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    const seedColor = Color(0xff628c6d);
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      brightness: brightness,
+    );
+    return ThemeData(
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: dark
+          ? const Color(0xff101612)
+          : const Color(0xfff7f8f4),
+      fontFamily: 'Avenir',
+      appBarTheme: AppBarTheme(
+        backgroundColor: dark
+            ? const Color(0xff101612)
+            : const Color(0xfff7f8f4),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1,
+        color: dark ? const Color(0xff1b241e) : null,
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+      useMaterial3: true,
     );
   }
 }
 
 class PantryHomePage extends StatefulWidget {
-  const PantryHomePage({super.key});
+  const PantryHomePage({
+    super.key,
+    required this.darkMode,
+    required this.onDarkModeChanged,
+  });
+
+  final bool darkMode;
+  final Future<void> Function(bool) onDarkModeChanged;
 
   @override
   State<PantryHomePage> createState() => _PantryHomePageState();
@@ -57,6 +111,8 @@ class _PantryHomePageState extends State<PantryHomePage>
     with WidgetsBindingObserver {
   static const _defaultServerUrl = 'http://192.168.1.24:3000';
   final LocalStore _store = LocalStore();
+  final LocalReminderService _reminderService = LocalReminderService();
+  late final Future<void> _notificationReady;
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _shopping = [];
   bool _loading = true;
@@ -74,15 +130,19 @@ class _PantryHomePageState extends State<PantryHomePage>
   String _shoppingFilter = 'To buy';
   String _inventorySort = 'Recently updated';
   bool _syncPending = false;
+  bool _expiryRemindersEnabled = false;
+  bool _shoppingRemindersEnabled = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _retryTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(minutes: 5),
       (_) => _retryPendingSync(),
     );
+    _notificationReady = _reminderService.initialize();
+    _initializeReminderPreferences();
     _load(retryPending: true);
   }
 
@@ -115,6 +175,7 @@ class _PantryHomePageState extends State<PantryHomePage>
             .toList();
         _loading = false;
       });
+      await _refreshReminders();
       if (!await _store.hasConfiguredMember() && mounted) {
         await _configureMember(initial: true);
       }
@@ -151,6 +212,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         _syncing = false;
         _connectionStatus = 'Connected';
       });
+      await _refreshReminders();
       _message('Synced with Stockd laptop');
       return true;
     } catch (error) {
@@ -162,6 +224,7 @@ class _PantryHomePageState extends State<PantryHomePage>
           _connectionStatus = 'Offline';
           _error = 'Laptop not reachable. Connect to home Wi-Fi and try again.';
         });
+      await _refreshReminders();
       return false;
     }
   }
@@ -185,6 +248,83 @@ class _PantryHomePageState extends State<PantryHomePage>
         );
     } catch (_) {
       if (mounted) setState(() => _connectionStatus = 'Offline');
+    }
+  }
+
+  Future<void> _initializeReminderPreferences() async {
+    try {
+      await _notificationReady;
+      final settings = await _store.reminderSettings();
+      if (!mounted) return;
+      setState(() {
+        _expiryRemindersEnabled = settings.expiry;
+        _shoppingRemindersEnabled = settings.shopping;
+      });
+      await _refreshReminders();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Could not initialize reminders: $error');
+      }
+    }
+  }
+
+  Future<void> _setReminder(String type, bool enabled) async {
+    try {
+      await _notificationReady;
+      if (enabled && !await _reminderService.requestPermission()) {
+        if (mounted) {
+          setState(() {
+            if (type == 'expiry') {
+              _expiryRemindersEnabled = false;
+            } else {
+              _shoppingRemindersEnabled = false;
+            }
+          });
+          _message(
+            'Allow notifications in iPhone Settings to enable reminders.',
+          );
+        }
+        return;
+      }
+      await _store.setReminderEnabled(type, enabled);
+      if (!mounted) return;
+      setState(() {
+        if (type == 'expiry') {
+          _expiryRemindersEnabled = enabled;
+        } else {
+          _shoppingRemindersEnabled = enabled;
+        }
+      });
+      await _refreshReminders();
+      _message(enabled ? 'Reminder enabled' : 'Reminder disabled');
+    } catch (error) {
+      if (mounted) {
+        _message('Could not update reminder: $error');
+      }
+    }
+  }
+
+  Future<void> _refreshReminders() async {
+    try {
+      await _notificationReady;
+      await _reminderService.schedule(
+        items: _items,
+        shopping: _shopping,
+        expiryEnabled: _expiryRemindersEnabled,
+        shoppingEnabled: _shoppingRemindersEnabled,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Could not refresh reminders: $error');
+      }
+    }
+  }
+
+  Future<void> _changeDarkMode(bool enabled) async {
+    try {
+      await widget.onDarkModeChanged(enabled);
+    } catch (error) {
+      _message('Could not update appearance: $error');
     }
   }
 
@@ -307,6 +447,12 @@ class _PantryHomePageState extends State<PantryHomePage>
                 Navigator.pop(context);
                 _configureMember();
               },
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.dark_mode_outlined),
+              title: const Text('Dark theme'),
+              value: widget.darkMode,
+              onChanged: _changeDarkMode,
             ),
             ListTile(
               leading: const Icon(Icons.wifi_find),
@@ -446,6 +592,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   }
 
   Future<void> _discoverLaptop({bool silent = false}) async {
+    if (!mounted || _syncing) return;
     setState(() {
       _syncing = true;
       _error = null;
@@ -453,44 +600,111 @@ class _PantryHomePageState extends State<PantryHomePage>
     final client = MDnsClient();
     try {
       await client.start();
-      await for (final PtrResourceRecord pointer
-          in client.lookup<PtrResourceRecord>(
+      final pointers = <PtrResourceRecord>[];
+      final pointerSubscription = client
+          .lookup<PtrResourceRecord>(
             ResourceRecordQuery.serverPointer('_pantry._tcp.local'),
-          )) {
-        await for (final SrvResourceRecord service
-            in client.lookup<SrvResourceRecord>(
-              ResourceRecordQuery.service(pointer.domainName),
-            )) {
-          final host = service.target;
-          await for (final IPAddressResourceRecord address
-              in client.lookup<IPAddressResourceRecord>(
-                ResourceRecordQuery.addressIPv4(host),
-              )) {
-            final discovered =
-                'http://${address.address.address}:${service.port}';
-            await _store.setServerUrl(discovered);
-            if (!mounted) return;
-            setState(() {
-              _serverUrl = discovered;
-              _syncing = false;
-            });
-            await _sync();
-            if (!silent) _message('Found and synced with Stockd laptop');
-            return;
-          }
-        }
+          )
+          .listen(pointers.add);
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await pointerSubscription.cancel();
+      if (pointers.isEmpty) {
+        throw TimeoutException('No Stockd Bonjour service was found.');
       }
-      throw Exception('Stockd laptop was not found');
+
+      String? reachableServer;
+      for (final pointer in pointers.take(10)) {
+        try {
+          final service = await client
+              .lookup<SrvResourceRecord>(
+                ResourceRecordQuery.service(pointer.domainName),
+              )
+              .first
+              .timeout(const Duration(seconds: 2));
+          final addresses = <InternetAddress>{};
+          final addressSubscription = client
+              .lookup<IPAddressResourceRecord>(
+                ResourceRecordQuery.addressIPv4(service.target),
+              )
+              .listen((record) => addresses.add(record.address));
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await addressSubscription.cancel();
+
+          final candidates =
+              addresses.where((address) {
+                return _lanAddressPriority(address.address) < 99;
+              }).toList()..sort((a, b) {
+                return _lanAddressPriority(a.address)
+                    .compareTo(_lanAddressPriority(b.address));
+              });
+          for (final address in candidates) {
+            final candidate = 'http://${address.address}:${service.port}';
+            try {
+              final response = await http
+                  .get(Uri.parse('$candidate/api/state'))
+                  .timeout(const Duration(seconds: 2));
+              if (response.statusCode != 200) continue;
+              final payload = jsonDecode(response.body);
+              if (payload is Map &&
+                  payload['items'] is List &&
+                  payload['shopping'] is List) {
+                reachableServer = candidate;
+                break;
+              }
+            } on TimeoutException {
+              continue;
+            } on SocketException {
+              continue;
+            } on FormatException {
+              continue;
+            }
+          }
+        } on TimeoutException {
+          continue;
+        } on SocketException {
+          continue;
+        } on FormatException {
+          continue;
+        }
+        if (reachableServer != null) break;
+      }
+
+      if (reachableServer == null) {
+        throw const SocketException(
+          'No Stockd laptop responded at its advertised home-network address.',
+        );
+      }
+      await _store.setServerUrl(reachableServer);
+      if (!mounted) return;
+      setState(() => _serverUrl = reachableServer!);
+      final synced = await _sync();
+      if (!silent && synced) _message('Found and synced with Stockd laptop');
+      if (!silent && !synced) {
+        _message('Found the laptop, but sync failed. Try again.');
+      }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _syncing = false;
-          if (!silent)
-            _error = 'Stockd laptop was not found on this Wi-Fi network.';
+          _error = 'Could not find Stockd on this Wi-Fi network: $error';
         });
+        if (!silent) _message('Could not find Stockd on this Wi-Fi network.');
+      }
     } finally {
       client.stop();
     }
+  }
+
+  int _lanAddressPriority(String value) {
+    final octets = value.split('.').map(int.tryParse).toList();
+    if (octets.length != 4 || octets.any((octet) => octet == null)) return 99;
+    final a = octets[0]!;
+    final b = octets[1]!;
+    final c = octets[2]!;
+    if (a == 192 && b == 168) return c == 1 ? 0 : 1;
+    if (a == 10) return 2;
+    if (a == 172 && b >= 16 && b <= 31) return 3;
+    return 99;
   }
 
   Future<void> _addShoppingItem() async {
@@ -648,11 +862,65 @@ class _PantryHomePageState extends State<PantryHomePage>
     ];
     shoppingItem['done'] = 1;
     shoppingItem['updatedAt'] = stamp;
+    if (mounted) setState(() {});
     await _store.write(_items, _shopping);
     await _store.markSyncPending();
     if (mounted) setState(() => _syncPending = true);
-    setState(() {});
     await _sync();
+    _showUndo(
+      '${shoppingItem['name']} added to inventory',
+      () => _undoPicked(shoppingItem, id),
+    );
+  }
+
+  Future<void> _undoPicked(
+    Map<String, dynamic> shoppingItem,
+    int inventoryId,
+  ) async {
+    try {
+      final data = await _store.read();
+      final items = data.items
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final shopping = data.shopping
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final stamp = DateTime.now().toUtc().toIso8601String();
+      final inventoryItem = items.cast<Map<String, dynamic>?>().firstWhere(
+        (item) => item?['id'].toString() == inventoryId.toString(),
+        orElse: () => null,
+      );
+      final savedShoppingItem = shopping
+          .cast<Map<String, dynamic>?>()
+          .firstWhere(
+            (item) => item?['id'].toString() == shoppingItem['id'].toString(),
+            orElse: () => null,
+          );
+      if (inventoryItem == null || savedShoppingItem == null) {
+        _message('Could not undo purchase because the item has changed.');
+        return;
+      }
+      inventoryItem
+        ..['deletedAt'] = stamp
+        ..['updatedAt'] = stamp;
+      savedShoppingItem
+        ..['done'] = 0
+        ..['updatedAt'] = stamp;
+      await _store.write(items, shopping);
+      await _store.markSyncPending();
+      if (mounted) {
+        setState(() {
+          _items = items.where((item) => item['deletedAt'] == null).toList();
+          _shopping = shopping
+              .where((item) => item['deletedAt'] == null)
+              .toList();
+          _syncPending = true;
+        });
+      }
+      await _sync();
+    } catch (error) {
+      _message('Could not undo purchase: $error');
+    }
   }
 
   Future<void> _addInventoryItem() async {
@@ -702,36 +970,102 @@ class _PantryHomePageState extends State<PantryHomePage>
 
   Future<void> _deleteInventoryItem(Map<String, dynamic> item) async {
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
-    await _store.softDelete('items', item['id']);
-    await _store.markSyncPending();
-    if (mounted) setState(() => _syncPending = true);
-    await _load();
-    await _sync();
+    await _softDeleteItem('items', item);
   }
 
   Future<void> _deleteShoppingItem(Map<String, dynamic> item) async {
     if (!await _confirmDelete(item['name'] as String? ?? 'this item')) return;
-    await _store.softDelete('shopping', item['id']);
-    await _store.markSyncPending();
-    if (mounted) setState(() => _syncPending = true);
-    await _load();
-    await _sync();
+    await _softDeleteItem('shopping', item);
   }
 
   Future<void> _swipeDeleteInventory(Map<String, dynamic> item) async {
-    await _store.softDelete('items', item['id']);
-    await _store.markSyncPending();
-    if (mounted) setState(() => _syncPending = true);
-    await _load();
-    await _sync();
+    await _softDeleteItem('items', item);
   }
 
   Future<void> _swipeDeleteShopping(Map<String, dynamic> item) async {
-    await _store.softDelete('shopping', item['id']);
-    await _store.markSyncPending();
-    if (mounted) setState(() => _syncPending = true);
-    await _load();
-    await _sync();
+    await _softDeleteItem('shopping', item);
+  }
+
+  Future<void> _softDeleteItem(String table, Map<String, dynamic> item) async {
+    if (mounted) {
+      setState(() {
+        if (table == 'items') {
+          _items.removeWhere(
+            (entry) => entry['id'].toString() == item['id'].toString(),
+          );
+        } else {
+          _shopping.removeWhere(
+            (entry) => entry['id'].toString() == item['id'].toString(),
+          );
+        }
+      });
+    }
+    try {
+      await _store.softDelete(table, item['id']);
+      await _store.markSyncPending();
+      if (mounted) {
+        setState(() => _syncPending = true);
+      }
+      await _sync();
+      _showUndo(
+        '${item['name']} removed',
+        () => _undoDelete(table, item['id']),
+      );
+    } catch (error) {
+      await _load();
+      _message('Could not remove item: $error');
+    }
+  }
+
+  Future<void> _undoDelete(String table, dynamic id) async {
+    try {
+      final data = await _store.read();
+      final items = data.items
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final shopping = data.shopping
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      final rows = table == 'items' ? items : shopping;
+      final item = rows.cast<Map<String, dynamic>?>().firstWhere(
+        (entry) => entry?['id'].toString() == id.toString(),
+        orElse: () => null,
+      );
+      if (item == null) {
+        _message('Could not undo because the item is no longer available.');
+        return;
+      }
+      item
+        ..['deletedAt'] = null
+        ..['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+      await _store.write(items, shopping);
+      await _store.markSyncPending();
+      if (mounted) {
+        setState(() {
+          _items = items.where((entry) => entry['deletedAt'] == null).toList();
+          _shopping = shopping
+              .where((entry) => entry['deletedAt'] == null)
+              .toList();
+          _syncPending = true;
+        });
+      }
+      await _sync();
+    } catch (error) {
+      _message('Could not undo removal: $error');
+    }
+  }
+
+  void _showUndo(String message, VoidCallback onUndo) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(label: 'Undo', onPressed: onUndo),
+        ),
+      );
   }
 
   Widget _swipeBackground({
@@ -1389,7 +1723,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         ],
       ),
       body: _loading
-          ? const _PantrySplash()
+          ? _StockdSkeleton(section: _selectedSection)
           : AnimatedSwitcher(
               duration: const Duration(milliseconds: 260),
               switchInCurve: Curves.easeOutCubic,
@@ -1403,7 +1737,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                   children: [
                     if (_error != null)
                       Card(
-                        color: Colors.orange.shade50,
+                        color: Theme.of(context).colorScheme.tertiaryContainer,
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Text(_error!),
@@ -1462,7 +1796,9 @@ class _PantryHomePageState extends State<PantryHomePage>
                       if (_attentionItems().isNotEmpty) ...[
                         const SizedBox(height: 18),
                         Card(
-                          color: Colors.orange.shade50,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .tertiaryContainer,
                           child: Padding(
                             padding: const EdgeInsets.all(14),
                             child: Column(
@@ -1560,7 +1896,9 @@ class _PantryHomePageState extends State<PantryHomePage>
                                   icon: const Icon(Icons.clear),
                                 ),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
@@ -1635,7 +1973,9 @@ class _PantryHomePageState extends State<PantryHomePage>
                           labelText: 'Sort inventory',
                           prefixIcon: const Icon(Icons.sort),
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
@@ -1684,12 +2024,26 @@ class _PantryHomePageState extends State<PantryHomePage>
                         ],
                       ),
                       if (visibleItems.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text(
-                            'Your inventory is empty.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                        _EmptyState(
+                          icon: _items.isEmpty
+                              ? Icons.kitchen_outlined
+                              : Icons.search_off_outlined,
+                          title: _items.isEmpty
+                              ? 'Your pantry starts here'
+                              : 'No matching groceries',
+                          message: _items.isEmpty
+                              ? 'Add the groceries you have at home to keep your family in sync.'
+                              : 'Try another search or clear your filters to see all inventory.',
+                          actionLabel: _items.isEmpty
+                              ? 'Add first item'
+                              : 'Clear filters',
+                          onAction: _items.isEmpty
+                              ? _addInventoryItem
+                              : () => setState(() {
+                                  _searchQuery = '';
+                                  _selectedCategory = 'All';
+                                  _selectedStatus = 'All';
+                                }),
                         )
                       else
                         ...visibleItems.map(
@@ -1708,10 +2062,14 @@ class _PantryHomePageState extends State<PantryHomePage>
                             child: Card(
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: const Color(0xffe5f0e7),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
                                   child: Icon(
                                     _categoryIcon(item['category'] as String?),
-                                    color: const Color(0xff628c6d),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary,
                                   ),
                                 ),
                                 title: Text(item['name'] as String? ?? ''),
@@ -1819,12 +2177,52 @@ class _PantryHomePageState extends State<PantryHomePage>
                             setState(() => _shoppingFilter = selection.first),
                       ),
                       if (visibleShopping.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text(
-                            'Your shopping list is empty.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                        _EmptyState(
+                          icon: _shopping.isEmpty
+                              ? Icons.shopping_basket_outlined
+                              : _searchQuery.isNotEmpty ||
+                                    _selectedCategory != 'All'
+                              ? Icons.search_off_outlined
+                              : Icons.check_circle_outline,
+                          title: _shopping.isEmpty
+                              ? 'Your list is ready'
+                              : _searchQuery.isNotEmpty ||
+                                    _selectedCategory != 'All'
+                              ? 'No matching items'
+                              : _shoppingFilter == 'Completed'
+                              ? 'Nothing completed yet'
+                              : 'All caught up',
+                          message: _shopping.isEmpty
+                              ? 'Add groceries your family needs, then check them off as you shop.'
+                              : _searchQuery.isNotEmpty ||
+                                    _selectedCategory != 'All'
+                              ? 'Try a different search or clear your filters.'
+                              : _shoppingFilter == 'Completed'
+                              ? 'Items you pick up will appear here.'
+                              : 'There are no items left to buy. Nice work!',
+                          actionLabel: _shopping.isEmpty
+                              ? 'Add to shopping list'
+                              : _searchQuery.isNotEmpty ||
+                                    _selectedCategory != 'All'
+                              ? 'Clear filters'
+                              : _shoppingFilter == 'Completed'
+                              ? 'View items to buy'
+                              : 'View completed',
+                          onAction: _shopping.isEmpty
+                              ? _addShoppingItem
+                              : _searchQuery.isNotEmpty ||
+                                    _selectedCategory != 'All'
+                              ? () => setState(() {
+                                  _searchQuery = '';
+                                  _selectedCategory = 'All';
+                                  _shoppingFilter = 'To buy';
+                                })
+                              : () => setState(
+                                  () => _shoppingFilter =
+                                      _shoppingFilter == 'Completed'
+                                      ? 'To buy'
+                                      : 'Completed',
+                                ),
                         ),
                       ...visibleShopping.map((item) {
                         final done = item['done'] == 1 || item['done'] == true;
@@ -1861,7 +2259,11 @@ class _PantryHomePageState extends State<PantryHomePage>
                             alignment: Alignment.centerRight,
                           ),
                           child: Card(
-                            color: done ? Colors.grey.shade100 : null,
+                            color: done
+                                ? Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                : null,
                             child: ListTile(
                               leading: Checkbox(
                                 value: done,
@@ -1952,6 +2354,37 @@ class _PantryHomePageState extends State<PantryHomePage>
                               title: const Text('Family member'),
                               subtitle: Text(_memberName),
                               onTap: _configureMember,
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(Icons.dark_mode_outlined),
+                              title: const Text('Dark theme'),
+                              subtitle: const Text(
+                                'Use a darker appearance on this device',
+                              ),
+                              value: widget.darkMode,
+                              onChanged: _changeDarkMode,
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(Icons.event_busy_outlined),
+                              title: const Text('Expiry reminders'),
+                              subtitle: const Text(
+                                'A reminder the day before an item expires',
+                              ),
+                              value: _expiryRemindersEnabled,
+                              onChanged: (value) =>
+                                  _setReminder('expiry', value),
+                            ),
+                            SwitchListTile(
+                              secondary: const Icon(
+                                Icons.shopping_basket_outlined,
+                              ),
+                              title: const Text('Shopping reminder'),
+                              subtitle: const Text(
+                                'A daily reminder when items are still to buy',
+                              ),
+                              value: _shoppingRemindersEnabled,
+                              onChanged: (value) =>
+                                  _setReminder('shopping', value),
                             ),
                             ListTile(
                               leading: const Icon(Icons.sync),
@@ -2056,8 +2489,8 @@ class _StatCard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: const Color(0xffe5f0e7),
-                child: Icon(icon, color: const Color(0xff628c6d)),
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                child: Icon(icon, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: 10),
               Column(
@@ -2065,7 +2498,10 @@ class _StatCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                   Text(
                     value,
@@ -2084,52 +2520,229 @@ class _StatCard extends StatelessWidget {
   );
 }
 
-class _PantrySplash extends StatelessWidget {
-  const _PantrySplash();
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xfff7f8f4),
-      child: Center(
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 150,
-              height: 150,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: const Color(0xffe5f0e7),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Image.asset(
-                'lib/assets/Stockd-logo.png',
-                fit: BoxFit.cover,
-              ),
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: colors.primaryContainer,
+              child: Icon(icon, size: 29, color: colors.primary),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
             Text(
-              'Stockd',
-              style: Theme.of(context).textTheme.headlineMedium
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Family stock, together',
-              style: TextStyle(color: Colors.grey),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
             ),
-            const SizedBox(height: 28),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+            const SizedBox(height: 16),
+            FilledButton.tonal(onPressed: onAction, child: Text(actionLabel)),
           ],
         ),
       ),
     );
   }
+}
+
+class _StockdSkeleton extends StatefulWidget {
+  const _StockdSkeleton({required this.section});
+
+  final int section;
+
+  @override
+  State<_StockdSkeleton> createState() => _StockdSkeletonState();
+}
+
+class _StockdSkeletonState extends State<_StockdSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animation = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _animation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final skeletonColor = Color.lerp(
+          colorScheme.surfaceContainerHighest,
+          colorScheme.surfaceContainerLow,
+          _animation.value,
+        )!;
+        return ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 36),
+          children: [
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'lib/assets/Stockd-logo.png',
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Stockd',
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (widget.section == 0) ...[
+              _SkeletonBar(color: skeletonColor, width: 210, height: 30),
+              const SizedBox(height: 10),
+              _SkeletonBar(color: skeletonColor, width: 150, height: 16),
+              const SizedBox(height: 18),
+              _SkeletonBar(color: skeletonColor, height: 38),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SkeletonCard(color: skeletonColor, height: 90),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _SkeletonCard(color: skeletonColor, height: 90),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              _SkeletonBar(color: skeletonColor, width: 165, height: 22),
+              const SizedBox(height: 10),
+              ...List.generate(
+                3,
+                (_) => _SkeletonCard(color: skeletonColor, height: 76),
+              ),
+            ] else if (widget.section == 1 || widget.section == 2) ...[
+              _SkeletonBar(color: skeletonColor, height: 50),
+              const SizedBox(height: 16),
+              Row(
+                children: List.generate(
+                  3,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _SkeletonBar(
+                      color: skeletonColor,
+                      width: index == 0 ? 62 : 82,
+                      height: 34,
+                      radius: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              ...List.generate(
+                5,
+                (_) => _SkeletonCard(color: skeletonColor, height: 94),
+              ),
+            ] else ...[
+              _SkeletonBar(color: skeletonColor, width: 135, height: 28),
+              const SizedBox(height: 14),
+              _SkeletonCard(color: skeletonColor, height: 310),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard({required this.color, required this.height});
+
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            _SkeletonBar(color: color, width: 42, height: 42, radius: 14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SkeletonBar(color: color, width: 150, height: 14),
+                  const SizedBox(height: 9),
+                  _SkeletonBar(color: color, width: 205, height: 11),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _SkeletonBar extends StatelessWidget {
+  const _SkeletonBar({
+    required this.color,
+    this.width = double.infinity,
+    required this.height,
+    this.radius = 8,
+  });
+
+  final Color color;
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
 }
 
 class _ConnectionBanner extends StatelessWidget {
@@ -2189,6 +2802,127 @@ class _ConnectionBanner extends StatelessWidget {
   }
 }
 
+class LocalReminderService {
+  static const _shoppingReminderId = 1;
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+
+  Future<void> initialize() async {
+    timezone_data.initializeTimeZones();
+    final localTimezone = await FlutterTimezone.getLocalTimezone();
+    timezone.setLocalLocation(timezone.getLocation(localTimezone.identifier));
+    await _plugin.initialize(
+      settings: const InitializationSettings(
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> requestPermission() async {
+    final result = await _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, sound: true);
+    return result ?? false;
+  }
+
+  Future<void> schedule({
+    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> shopping,
+    required bool expiryEnabled,
+    required bool shoppingEnabled,
+  }) async {
+    await _plugin.cancelAll();
+    final now = timezone.TZDateTime.now(timezone.local);
+    final details = const NotificationDetails(
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: false,
+        presentSound: true,
+      ),
+    );
+
+    if (expiryEnabled) {
+      final datedItems =
+          items
+              .where((item) => (item['date'] as String? ?? '').isNotEmpty)
+              .toList()
+            ..sort(
+              (a, b) => (a['date'] as String).compareTo(b['date'] as String),
+            );
+      for (final item in datedItems.take(50)) {
+        final parsed = DateTime.tryParse(item['date'] as String);
+        if (parsed == null) continue;
+        final due = timezone.TZDateTime(
+          timezone.local,
+          parsed.year,
+          parsed.month,
+          parsed.day,
+          23,
+          59,
+        );
+        if (!due.isAfter(now)) continue;
+        var scheduled = timezone.TZDateTime(
+          timezone.local,
+          parsed.year,
+          parsed.month,
+          parsed.day - 1,
+          9,
+        );
+        if (!scheduled.isAfter(now)) {
+          scheduled = now.add(const Duration(minutes: 1));
+        }
+        final itemName = item['name'] as String? ?? 'A grocery item';
+        final id = 100 + (item['id'].toString().hashCode & 0x3fffffff);
+        await _plugin.zonedSchedule(
+          id: id,
+          title: 'Use $itemName soon',
+          body: 'Best before ${item['date']}. Check your Stockd inventory.',
+          scheduledDate: scheduled,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        );
+      }
+    }
+
+    final hasItemsToBuy = shopping.any(
+      (item) => item['done'] != 1 && item['done'] != true,
+    );
+    if (shoppingEnabled && hasItemsToBuy) {
+      var scheduled = timezone.TZDateTime(
+        timezone.local,
+        now.year,
+        now.month,
+        now.day,
+        17,
+      );
+      if (!scheduled.isAfter(now)) {
+        scheduled = timezone.TZDateTime(
+          timezone.local,
+          now.year,
+          now.month,
+          now.day + 1,
+          17,
+        );
+      }
+      await _plugin.zonedSchedule(
+        id: _shoppingReminderId,
+        title: 'Stockd shopping reminder',
+        body: 'Your shopping list still has items to buy.',
+        scheduledDate: scheduled,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
+  }
+}
+
 class PantryData {
   const PantryData(this.items, this.shopping);
   final List<Map<String, dynamic>> items;
@@ -2242,6 +2976,24 @@ class LocalStore {
   Future<void> setMemberConfigured() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setBool('member_configured', true);
+  }
+
+  Future<({bool expiry, bool shopping})> reminderSettings() async {
+    final preferences = await SharedPreferences.getInstance();
+    return (
+      expiry: preferences.getBool('expiry_reminders') ?? false,
+      shopping: preferences.getBool('shopping_reminders') ?? false,
+    );
+  }
+
+  Future<void> setReminderEnabled(String type, bool enabled) async {
+    final key = switch (type) {
+      'expiry' => 'expiry_reminders',
+      'shopping' => 'shopping_reminders',
+      _ => throw ArgumentError.value(type, 'type', 'Unknown reminder type'),
+    };
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(key, enabled);
   }
 
   Future<bool> hasPendingSync() async {
