@@ -17,6 +17,8 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 
+import 'stock_levels.dart';
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatefulWidget {
@@ -932,6 +934,7 @@ class _PantryHomePageState extends State<PantryHomePage>
         'id': DateTime.now().millisecondsSinceEpoch,
         'name': draft['name'],
         'quantity': draft['quantity'],
+        'minimumQuantity': double.tryParse(draft['minimumQuantity'] ?? ''),
         'category': draft['category'],
         'date': draft['date'],
         'icon': '🛒',
@@ -1113,6 +1116,9 @@ class _PantryHomePageState extends State<PantryHomePage>
     final quantityController = TextEditingController(
       text: item['quantity'] as String? ?? '',
     );
+    final minimumController = TextEditingController(
+      text: item['minimumQuantity']?.toString() ?? '',
+    );
     String category = item['category'] as String? ?? 'Pantry';
     String status = item['status'] as String? ?? 'ok';
     DateTime bestBefore =
@@ -1134,6 +1140,19 @@ class _PantryHomePageState extends State<PantryHomePage>
                 TextField(
                   controller: quantityController,
                   decoration: const InputDecoration(labelText: 'Quantity'),
+                ),
+                TextField(
+                  controller: minimumController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Restock when at or below (optional)',
+                    helperText: 'Use the same unit as the quantity',
+                  ),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: category,
@@ -1199,6 +1218,7 @@ class _PantryHomePageState extends State<PantryHomePage>
     item
       ..['name'] = nameController.text.trim()
       ..['quantity'] = quantityController.text.trim()
+      ..['minimumQuantity'] = double.tryParse(minimumController.text)
       ..['category'] = category
       ..['status'] = status
       ..['date'] =
@@ -1341,6 +1361,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   Future<Map<String, String>?> _askForInventoryItem() async {
     final nameController = TextEditingController();
     final quantityController = TextEditingController();
+    final minimumController = TextEditingController();
     String category = 'Pantry';
     String status = 'ok';
     DateTime bestBefore = DateTime.now().add(const Duration(days: 7));
@@ -1384,6 +1405,21 @@ class _PantryHomePageState extends State<PantryHomePage>
                       labelText: 'Quantity (optional)',
                       hintText: 'e.g. 2 kg',
                       prefixIcon: Icon(Icons.scale_outlined),
+                    ),
+                  ),
+                  TextField(
+                    controller: minimumController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Restock threshold (optional)',
+                      hintText: 'e.g. 2',
+                      helperText: 'Same unit as quantity. Flag low at or below this level.',
+                      prefixIcon: Icon(Icons.low_priority),
                     ),
                   ),
                   DropdownButtonFormField<String>(
@@ -1449,6 +1485,7 @@ class _PantryHomePageState extends State<PantryHomePage>
                     onPressed: () => Navigator.pop(context, {
                       'name': nameController.text.trim(),
                       'quantity': quantityController.text.trim(),
+                      'minimumQuantity': minimumController.text.trim(),
                       'category': category,
                       'status': status,
                       'date':
@@ -1493,12 +1530,72 @@ class _PantryHomePageState extends State<PantryHomePage>
     final details = <String>[
       if ((item['quantity'] as String? ?? '').trim().isNotEmpty)
         (item['quantity'] as String).trim(),
+      if (item['minimumQuantity'] is num)
+        'Restock at or below ${item['minimumQuantity']}',
       if ((item['date'] as String? ?? '').trim().isNotEmpty)
         'Best before ${item['date']}',
     ];
     return details.isEmpty
         ? 'No quantity or best-before date'
         : details.join(' · ');
+  }
+
+  bool _isLowStock(Map<String, dynamic> item) {
+    return isAtOrBelowMinimum(item);
+  }
+
+  Future<void> _addRestockToShopping(Map<String, dynamic> item) async {
+    final name = item['name'] as String? ?? 'Item';
+    final existing = _shopping.where(
+      (entry) =>
+          entry['deletedAt'] == null &&
+          entry['done'] != 1 &&
+          entry['done'] != true &&
+          (entry['name'] as String? ?? '').toLowerCase() == name.toLowerCase(),
+    );
+    if (existing.isNotEmpty) {
+      _message('$name is already on the shopping list');
+      if (mounted) setState(() => _selectedSection = 2);
+      return;
+    }
+    final stamp = DateTime.now().toUtc().toIso8601String();
+    final minimum = item['minimumQuantity'];
+    final restockItem = {
+      'id': DateTime.now().millisecondsSinceEpoch,
+      'name': name,
+      'note': minimum == null ? 'Restock' : 'Restock to $minimum',
+      'category': item['category'] ?? 'Pantry',
+      'date': item['date'] ?? '',
+      'icon': item['icon'] ?? '🛒',
+      'done': 0,
+      'who': _memberName,
+      'createdAt': stamp,
+      'updatedAt': stamp,
+    };
+    _shopping = [restockItem, ..._shopping];
+    try {
+      await _store.write(_items, _shopping);
+      await _store.markSyncPending();
+      if (mounted) {
+        setState(() {
+          _selectedSection = 2;
+          _syncPending = true;
+        });
+      }
+      final synced = await _sync();
+      if (!synced && mounted) {
+        _message(
+          '$name added locally; it will sync when the laptop is reachable',
+        );
+      }
+    } catch (error) {
+      _shopping.removeWhere(
+        (entry) => entry['id'].toString() == restockItem['id'].toString(),
+      );
+      if (mounted) {
+        _message('Could not add $name to shopping list: $error');
+      }
+    }
   }
 
   String _shoppingSubtitle(Map<String, dynamic> item) {
@@ -1584,7 +1681,7 @@ class _PantryHomePageState extends State<PantryHomePage>
   List<Map<String, dynamic>> _attentionItems() {
     return _items.where((item) {
       final status = item['status'] as String?;
-      return status == 'low' ||
+      return _isLowStock(item) ||
           status == 'soon' ||
           _expiryLabel(item['date'] as String?) != null;
     }).toList();
@@ -1615,7 +1712,9 @@ class _PantryHomePageState extends State<PantryHomePage>
     final statusMatches =
         _selectedSection != 1 ||
         _selectedStatus == 'All' ||
-        item['status'] == _selectedStatus;
+        (_selectedStatus == 'low'
+            ? _isLowStock(item)
+            : item['status'] == _selectedStatus);
     if (!statusMatches) return false;
     if (query.isEmpty) return true;
     return [
@@ -1652,9 +1751,11 @@ class _PantryHomePageState extends State<PantryHomePage>
           return dateValue(left['date']).compareTo(dateValue(right['date']));
         case 'Stock urgency':
           const rank = {'soon': 0, 'low': 1, 'ok': 2};
-          return (rank[left['status']] ?? 3).compareTo(
-            rank[right['status']] ?? 3,
-          );
+          final leftRank = _isLowStock(left) ? 0 : (rank[left['status']] ?? 3);
+          final rightRank = _isLowStock(right)
+              ? 0
+              : (rank[right['status']] ?? 3);
+          return leftRank.compareTo(rightRank);
         default:
           return dateValue(right['updatedAt'])
               .compareTo(dateValue(left['updatedAt']));
@@ -2088,9 +2189,11 @@ class _PantryHomePageState extends State<PantryHomePage>
                                         ),
                                         _itemBadge(
                                           _statusLabel(
-                                            item['status'] as String?,
+                                            _isLowStock(item)
+                                                ? 'low'
+                                                : item['status'] as String?,
                                           ),
-                                          foreground: item['status'] == 'low'
+                                          foreground: _isLowStock(item)
                                               ? Colors.deepOrange
                                               : item['status'] == 'soon'
                                               ? Colors.deepPurple
@@ -2110,6 +2213,23 @@ class _PantryHomePageState extends State<PantryHomePage>
                                           ),
                                       ],
                                     ),
+                                    if (_isLowStock(item)) ...[
+                                      const SizedBox(height: 4),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton.icon(
+                                          onPressed: () =>
+                                              _addRestockToShopping(item),
+                                          icon: const Icon(
+                                            Icons.add_shopping_cart,
+                                            size: 17,
+                                          ),
+                                          label: const Text(
+                                            'Add to shopping list',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                                 trailing: Row(
@@ -3030,10 +3150,10 @@ class LocalStore {
     final directory = await getApplicationDocumentsDirectory();
     _database = await openDatabase(
       path.join(directory.path, 'pantry_mobile.db'),
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute(
-          'CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, category TEXT, quantity TEXT, date TEXT, icon TEXT, status TEXT)',
+          'CREATE TABLE items (id INTEGER PRIMARY KEY, shoppingId INTEGER, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, category TEXT, quantity TEXT, minimumQuantity REAL, date TEXT, icon TEXT, status TEXT)',
         );
         await db.execute(
           'CREATE TABLE shopping (id INTEGER PRIMARY KEY, createdAt TEXT, updatedAt TEXT, deletedAt TEXT, name TEXT, note TEXT, category TEXT, date TEXT, icon TEXT, done INTEGER, who TEXT)',
@@ -3043,6 +3163,9 @@ class LocalStore {
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE items ADD COLUMN deletedAt TEXT');
           await db.execute('ALTER TABLE shopping ADD COLUMN deletedAt TEXT');
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE items ADD COLUMN minimumQuantity REAL');
         }
       },
     );

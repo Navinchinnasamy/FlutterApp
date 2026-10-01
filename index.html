@@ -119,6 +119,7 @@
         <p class="eyebrow">Add to your home stock</p><h2 id="modal-title">New grocery item</h2><p class="modal-subtitle">Keep a simple, shared record of what you have.</p>
         <label>Item name<input name="name" required placeholder="e.g. Greek yoghurt" /></label>
         <div class="form-row"><label>Category<select name="category"><option>Produce</option><option>Dairy</option><option>Pantry</option><option>Freezer</option><option>Drinks</option></select></label><label>Quantity<input name="quantity" required placeholder="e.g. 2 tubs" /></label></div>
+        <label id="minimum-quantity-label">Restock threshold <small>(optional, same unit as quantity)</small><input name="minimumQuantity" type="number" min="0" step="any" placeholder="e.g. 1" /></label>
         <label>Best before <input name="date" type="date" /></label>
         <label>Status<select name="status"><option value="ok">In stock</option><option value="low">Running low</option><option value="soon">Use soon</option></select></label>
         <label>Added by<select name="who"><option>Navin</option><option>Vani</option></select></label>
